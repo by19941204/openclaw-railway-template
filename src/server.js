@@ -26,14 +26,16 @@ function resolveGatewayToken() {
   try {
     const existing = fs.readFileSync(tokenPath, "utf8").trim();
     if (existing) return existing;
-  } catch {
+  } catch (err) {
+    console.warn(`[gateway-token] could not read existing token: ${err.code || err.message}`);
   }
 
   const generated = crypto.randomBytes(32).toString("hex");
   try {
     fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(tokenPath, generated, { encoding: "utf8", mode: 0o600 });
-  } catch {
+  } catch (err) {
+    console.warn(`[gateway-token] could not persist token: ${err.code || err.message}`);
   }
   return generated;
 }
@@ -92,6 +94,9 @@ async function waitForGatewayReady(opts = {}) {
           return true;
         }
       } catch (err) {
+        if (err.code !== "ECONNREFUSED") {
+          console.warn(`[gateway] health check error: ${err.code || err.message}`);
+        }
       }
     }
     await sleep(250);
@@ -167,7 +172,8 @@ async function restartGateway() {
   if (gatewayProc) {
     try {
       gatewayProc.kill("SIGTERM");
-    } catch {
+    } catch (err) {
+      console.warn(`[gateway] kill error: ${err.message}`);
     }
     await sleep(750);
     gatewayProc = null;
@@ -194,7 +200,11 @@ function requireSetupAuth(req, res, next) {
   const decoded = Buffer.from(encoded, "base64").toString("utf8");
   const idx = decoded.indexOf(":");
   const password = idx >= 0 ? decoded.slice(idx + 1) : "";
-  if (password !== SETUP_PASSWORD) {
+  const passwordBuf = Buffer.from(password);
+  const expectedBuf = Buffer.from(SETUP_PASSWORD);
+  const isValid = passwordBuf.length === expectedBuf.length &&
+    crypto.timingSafeEqual(passwordBuf, expectedBuf);
+  if (!isValid) {
     res.set("WWW-Authenticate", 'Basic realm="OpenClaw Setup"');
     return res.status(401).send("Invalid password");
   }
@@ -417,6 +427,34 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
+const VALID_FLOWS = ["quickstart", "advanced", "manual"];
+const VALID_AUTH_CHOICES = [
+  "codex-cli", "openai-codex", "openai-api-key",
+  "claude-cli", "token", "apiKey",
+  "gemini-api-key", "google-antigravity", "google-gemini-cli",
+  "openrouter-api-key", "ai-gateway-api-key",
+  "moonshot-api-key", "kimi-code-api-key",
+  "zai-api-key", "minimax-api", "minimax-api-lightning",
+  "qwen-portal", "github-copilot", "copilot-proxy",
+  "synthetic-api-key", "opencode-zen",
+];
+
+function validatePayload(payload) {
+  if (payload.flow && !VALID_FLOWS.includes(payload.flow)) {
+    return `Invalid flow: ${payload.flow}. Must be one of: ${VALID_FLOWS.join(", ")}`;
+  }
+  if (payload.authChoice && !VALID_AUTH_CHOICES.includes(payload.authChoice)) {
+    return `Invalid authChoice: ${payload.authChoice}`;
+  }
+  const stringFields = ["telegramToken", "discordToken", "slackBotToken", "slackAppToken", "authSecret"];
+  for (const field of stringFields) {
+    if (payload[field] !== undefined && typeof payload[field] !== "string") {
+      return `Invalid ${field}: must be a string`;
+    }
+  }
+  return null;
+}
+
 app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
   try {
     if (isConfigured()) {
@@ -432,6 +470,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
     const payload = req.body || {};
+    const validationError = validatePayload(payload);
+    if (validationError) {
+      return res.status(400).json({ ok: false, output: validationError });
+    }
     const onboardArgs = buildOnboardArgs(payload);
     const onboard = await runCmd(OPENCLAW_NODE, clawArgs(onboardArgs));
 
@@ -440,33 +482,6 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     const ok = onboard.code === 0 && isConfigured();
 
     if (ok) {
-      await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
-      await runCmd(
-        OPENCLAW_NODE,
-        clawArgs(["config", "set", "gateway.auth.mode", "token"]),
-      );
-      await runCmd(
-        OPENCLAW_NODE,
-        clawArgs([
-          "config",
-          "set",
-          "gateway.auth.token",
-          OPENCLAW_GATEWAY_TOKEN,
-        ]),
-      );
-      await runCmd(
-        OPENCLAW_NODE,
-        clawArgs(["config", "set", "gateway.bind", "loopback"]),
-      );
-      await runCmd(
-        OPENCLAW_NODE,
-        clawArgs([
-          "config",
-          "set",
-          "gateway.port",
-          String(INTERNAL_GATEWAY_PORT),
-        ]),
-      );
       await runCmd(
         OPENCLAW_NODE,
         clawArgs(["config", "set", "gateway.controlUi.allowInsecureAuth", "true"]),
@@ -478,100 +493,47 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       );
       const helpText = channelsHelp.output || "";
 
-      const supports = (name) => helpText.includes(name);
+      async function configureChannel(name, cfgObj) {
+        if (!helpText.includes(name)) {
+          return `\n[${name}] skipped (this openclaw build does not list ${name} in \`channels add --help\`)\n`;
+        }
+        const set = await runCmd(
+          OPENCLAW_NODE,
+          clawArgs(["config", "set", "--json", `channels.${name}`, JSON.stringify(cfgObj)]),
+        );
+        const get = await runCmd(
+          OPENCLAW_NODE,
+          clawArgs(["config", "get", `channels.${name}`]),
+        );
+        return `\n[${name} config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}` +
+          `\n[${name} verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+      }
 
       if (payload.telegramToken?.trim()) {
-        if (!supports("telegram")) {
-          extra +=
-            "\n[telegram] skipped (this openclaw build does not list telegram in `channels add --help`)\n";
-        } else {
-          const token = payload.telegramToken.trim();
-          const cfgObj = {
-            enabled: true,
-            dmPolicy: "pairing",
-            botToken: token,
-            groupPolicy: "allowlist",
-            streamMode: "partial",
-          };
-          const set = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs([
-              "config",
-              "set",
-              "--json",
-              "channels.telegram",
-              JSON.stringify(cfgObj),
-            ]),
-          );
-          const get = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs(["config", "get", "channels.telegram"]),
-          );
-          extra += `\n[telegram config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-          extra += `\n[telegram verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
-        }
+        extra += await configureChannel("telegram", {
+          enabled: true,
+          dmPolicy: "pairing",
+          botToken: payload.telegramToken.trim(),
+          groupPolicy: "allowlist",
+          streamMode: "partial",
+        });
       }
 
       if (payload.discordToken?.trim()) {
-        if (!supports("discord")) {
-          extra +=
-            "\n[discord] skipped (this openclaw build does not list discord in `channels add --help`)\n";
-        } else {
-          const token = payload.discordToken.trim();
-          const cfgObj = {
-            enabled: true,
-            token,
-            groupPolicy: "allowlist",
-            dm: {
-              policy: "pairing",
-            },
-          };
-          const set = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs([
-              "config",
-              "set",
-              "--json",
-              "channels.discord",
-              JSON.stringify(cfgObj),
-            ]),
-          );
-          const get = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs(["config", "get", "channels.discord"]),
-          );
-          extra += `\n[discord config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-          extra += `\n[discord verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
-        }
+        extra += await configureChannel("discord", {
+          enabled: true,
+          token: payload.discordToken.trim(),
+          groupPolicy: "allowlist",
+          dm: { policy: "pairing" },
+        });
       }
 
       if (payload.slackBotToken?.trim() || payload.slackAppToken?.trim()) {
-        if (!supports("slack")) {
-          extra +=
-            "\n[slack] skipped (this openclaw build does not list slack in `channels add --help`)\n";
-        } else {
-          const cfgObj = {
-            enabled: true,
-            botToken: payload.slackBotToken?.trim() || undefined,
-            appToken: payload.slackAppToken?.trim() || undefined,
-          };
-          const set = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs([
-              "config",
-              "set",
-              "--json",
-              "channels.slack",
-              JSON.stringify(cfgObj),
-            ]),
-          );
-          const get = await runCmd(
-            OPENCLAW_NODE,
-            clawArgs(["config", "get", "channels.slack"]),
-          );
-          extra += `\n[slack config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-          extra += `\n[slack verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
-        }
+        extra += await configureChannel("slack", {
+          enabled: true,
+          botToken: payload.slackBotToken?.trim() || undefined,
+          appToken: payload.slackAppToken?.trim() || undefined,
+        });
       }
 
       await restartGateway();
@@ -741,7 +703,8 @@ server.on("upgrade", async (req, socket, head) => {
   }
   try {
     await ensureGatewayRunning();
-  } catch {
+  } catch (err) {
+    console.warn(`[websocket] gateway not ready: ${err.message}`);
     socket.destroy();
     return;
   }
@@ -749,9 +712,11 @@ server.on("upgrade", async (req, socket, head) => {
 });
 
 process.on("SIGTERM", () => {
+  console.log("[wrapper] received SIGTERM, shutting down");
   try {
     if (gatewayProc) gatewayProc.kill("SIGTERM");
-  } catch {
+  } catch (err) {
+    console.warn(`[wrapper] error killing gateway: ${err.message}`);
   }
   process.exit(0);
 });

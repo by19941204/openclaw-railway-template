@@ -1,5 +1,5 @@
 # Build openclaw from source to avoid npm packaging gaps (some dist files are not shipped).
-FROM node:22-bookworm AS openclaw-build
+FROM node:24.1.0-bookworm AS openclaw-build
 
 # Dependencies needed for openclaw build
 RUN apt-get update \
@@ -39,7 +39,7 @@ RUN pnpm ui:install && pnpm ui:build
 
 
 # Runtime image
-FROM node:22-bookworm
+FROM node:24.1.0-bookworm
 ENV NODE_ENV=production
 
 RUN apt-get update \
@@ -87,6 +87,15 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
 
 COPY src ./src
 
+RUN useradd -m -s /bin/bash openclaw \
+  && chown -R openclaw:openclaw /app /openclaw \
+  && mkdir -p /data && chown openclaw:openclaw /data
+
 ENV PORT=8080
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD curl -f http://localhost:8080/setup/healthz || exit 1
+
+USER openclaw
 CMD ["node", "src/server.js"]

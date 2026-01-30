@@ -25,8 +25,8 @@ npm start
 # Syntax check
 npm run lint
 
-# Local smoke test (requires Docker)
-npm run smoke
+# Smoke test in Docker (scripts not included in production image)
+docker run --rm -v $(pwd)/scripts:/app/scripts openclaw-railway-template npm run smoke
 ```
 
 ## Docker Build & Local Testing
