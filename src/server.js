@@ -220,7 +220,7 @@ async function restartGateway() {
 const setupRateLimiter = {
   attempts: new Map(),
   windowMs: 60_000,
-  maxAttempts: 10,
+  maxAttempts: 50,
   cleanupInterval: setInterval(function () {
     const now = Date.now();
     for (const [ip, data] of setupRateLimiter.attempts) {
@@ -282,7 +282,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
 
-app.get("/setup/styles.css", requireSetupAuth, (_req, res) => {
+app.get("/setup/styles.css", (_req, res) => {
   res.type("text/css");
   res.sendFile(path.join(process.cwd(), "src", "public", "styles.css"));
 });
