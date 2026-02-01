@@ -151,14 +151,12 @@
       ws.onopen = () => {
         setStatus('connected', 'Connected');
         reconnectAttempts = 0;
-        requestAnimationFrame(() => {
-          fitAddon.fit();
-          ws.send(JSON.stringify({
-            type: 'resize',
-            cols: term.cols,
-            rows: term.rows
-          }));
-        });
+        fitAddon.fit();
+        ws.send(JSON.stringify({
+          type: 'resize',
+          cols: term.cols,
+          rows: term.rows
+        }));
       };
 
       ws.onmessage = (event) => {
