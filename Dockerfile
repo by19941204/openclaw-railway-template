@@ -9,9 +9,38 @@ RUN apt-get update \
     procps \
     python3 \
     build-essential \
+    # Chrome/Playwright dependencies
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libxshmfence1 \
+    libx11-xcb1 \
+    libxcb-dri3-0 \
+    libxfixes3 \
+    libdbus-1-3 \
+    libexpat1 \
+    libxext6 \
+    libx11-6 \
+    libxcb1 \
+    libxau6 \
+    libxdmcp6 \
+    fonts-liberation \
+    fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g openclaw@latest
+RUN npm install -g openclaw@latest \
+  && npx playwright install chromium
 
 WORKDIR /app
 
@@ -35,7 +64,7 @@ ENV HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar"
 ENV HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
 
 ENV PORT=8080
-ENV OPENCLAW_ENTRY=/usr/local/lib/node_modules/openclaw/dist/entry.js
+ENV OPENCLAW_ENTRY=/usr/local/lib/node_modules/openclaw/openclaw.mjs
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
