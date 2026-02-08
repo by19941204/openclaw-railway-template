@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import { cloudsearch, song_url_v1 } from "NeteaseCloudMusicApi";
+import NeteaseCloudMusicApi from "NeteaseCloudMusicApi";
+const { cloudsearch, song_url_v1 } = NeteaseCloudMusicApi;
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
