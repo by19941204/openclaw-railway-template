@@ -2,26 +2,13 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
+import { cloudsearch, song_url_v1 } from "NeteaseCloudMusicApi";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 const RADIO_DIR = "/tmp/radio";
-const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
-
-// Write YouTube cookies from env var (base64 encoded) to file on startup
-function initCookies() {
-  const b64 = process.env.YT_COOKIES_B64;
-  if (b64) {
-    try {
-      fs.mkdirSync(RADIO_DIR, { recursive: true });
-      fs.writeFileSync(COOKIES_PATH, Buffer.from(b64, "base64").toString("utf-8"));
-      console.log("[radio] YouTube cookies loaded from env");
-    } catch (err) {
-      console.error("[radio] Failed to write cookies:", err.message);
-    }
-  } else {
-    console.log("[radio] No YT_COOKIES_B64 env var, yt-dlp will run without cookies");
-  }
-}
+const REAL_IP = "116.25.146.177"; // Spoof Chinese IP for Netease geo-restriction bypass
 
 class Radio extends EventEmitter {
   constructor() {
@@ -36,10 +23,67 @@ class Radio extends EventEmitter {
     this.downloadingSet = new Set(); // track queries being downloaded
 
     fs.mkdirSync(RADIO_DIR, { recursive: true });
-    initCookies();
+    console.log("[radio] initialized (source: Netease Cloud Music)");
   }
 
-  // Search YouTube and download audio
+  // Search Netease Cloud Music for a track
+  async _searchNetease(query) {
+    console.log(`[radio] searching netease: "${query}"`);
+    const result = await cloudsearch({
+      keywords: query,
+      type: 1, // songs
+      limit: 5,
+      realIP: REAL_IP,
+    });
+
+    const songs = result.body.result && result.body.result.songs;
+    if (!songs || songs.length === 0) {
+      console.log(`[radio] no results for: "${query}"`);
+      return null;
+    }
+
+    // Try to find one with available audio (skip VIP-only tracks)
+    for (const song of songs) {
+      const urlResult = await song_url_v1({
+        id: song.id,
+        level: "exhigh",
+        realIP: REAL_IP,
+      });
+
+      const data = urlResult.body.data && urlResult.body.data[0];
+      if (data && data.url && data.code === 200) {
+        const info = {
+          neteaseId: song.id,
+          title: song.name,
+          artist: song.ar ? song.ar.map(a => a.name).join(", ") : "Unknown",
+          duration: Math.round((song.dt || 0) / 1000), // ms -> seconds
+          thumbnail: song.al && song.al.picUrl ? song.al.picUrl : null,
+          audioUrl: data.url,
+          audioSize: data.size || 0,
+        };
+        console.log(`[radio] found: "${info.title}" by ${info.artist} (${info.duration}s, ${Math.round(info.audioSize / 1024)}KB)`);
+        return info;
+      }
+    }
+
+    console.log(`[radio] all results for "${query}" have no available audio URL`);
+    return null;
+  }
+
+  // Download audio file from URL
+  async _downloadFile(url, outputPath) {
+    console.log(`[radio] downloading: ${url.slice(0, 80)}...`);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
+    if (!resp.ok) {
+      throw new Error(`Download failed: HTTP ${resp.status}`);
+    }
+    const fileStream = fs.createWriteStream(outputPath);
+    await pipeline(Readable.fromWeb(resp.body), fileStream);
+    const stat = fs.statSync(outputPath);
+    console.log(`[radio] downloaded: ${Math.round(stat.size / 1024)}KB -> ${outputPath}`);
+  }
+
+  // Search and download a track
   async downloadTrack(query) {
     if (this.downloadingSet.has(query)) {
       return null; // already downloading
@@ -50,13 +94,12 @@ class Radio extends EventEmitter {
     const outputPath = path.join(RADIO_DIR, `${id}.mp3`);
 
     try {
-      // Use yt-dlp to search and download
-      const info = await this._getTrackInfo(query);
+      const info = await this._searchNetease(query);
       if (!info) {
         throw new Error(`No results for: ${query}`);
       }
 
-      await this._downloadAudio(info.url, outputPath);
+      await this._downloadFile(info.audioUrl, outputPath);
 
       const track = {
         id,
@@ -77,101 +120,6 @@ class Radio extends EventEmitter {
     } finally {
       this.downloadingSet.delete(query);
     }
-  }
-
-  // Get track info from yt-dlp
-  _getTrackInfo(query) {
-    return new Promise((resolve, reject) => {
-      const args = [
-        "--dump-json",
-        "--no-playlist",
-        "--default-search", "ytsearch1",
-        "--socket-timeout", "30",
-        "--retries", "5",
-      ];
-      // Add cookies if available
-      if (fs.existsSync(COOKIES_PATH)) {
-        args.push("--cookies", COOKIES_PATH);
-      }
-      // "--" separates options from positional args so query is never parsed as an option
-      args.push("--", query);
-
-      console.log(`[radio] yt-dlp info argv:`, JSON.stringify(args));
-      const proc = spawn("yt-dlp", args, { timeout: 120000 }); // 2min for search (proxy adds latency)
-      let stdout = "";
-      let stderr = "";
-
-      proc.stdout.on("data", (d) => (stdout += d.toString()));
-      proc.stderr.on("data", (d) => (stderr += d.toString()));
-
-      proc.on("close", (code) => {
-        if (code !== 0) {
-          return reject(new Error(`yt-dlp info failed: ${stderr.slice(0, 200)}`));
-        }
-        try {
-          const data = JSON.parse(stdout);
-          resolve({
-            url: data.webpage_url || data.url,
-            title: data.title || data.fulltitle,
-            artist: data.artist || data.uploader || data.channel,
-            duration: data.duration || 0,
-            thumbnail: data.thumbnail || null,
-          });
-        } catch (e) {
-          reject(new Error(`Failed to parse yt-dlp output: ${e.message}`));
-        }
-      });
-
-      proc.on("error", reject);
-    });
-  }
-
-  // Download audio file
-  _downloadAudio(url, outputPath) {
-    return new Promise((resolve, reject) => {
-      const args = [
-        "-x", // extract audio
-        "--audio-format", "mp3",
-        "--audio-quality", "5", // ~128kbps
-        "--no-playlist",
-        "--socket-timeout", "30",
-        "--retries", "5",
-      ];
-      // Add cookies if available
-      if (fs.existsSync(COOKIES_PATH)) {
-        args.push("--cookies", COOKIES_PATH);
-      }
-      args.push("-o", outputPath, "--", url);
-
-      console.log(`[radio] download argv:`, JSON.stringify(args));
-      const proc = spawn("yt-dlp", args, { timeout: 300000 }); // 5min for download (proxy + conversion)
-      let stderr = "";
-
-      proc.stderr.on("data", (d) => (stderr += d.toString()));
-      proc.stdout.on("data", (d) => {
-        const line = d.toString().trim();
-        if (line) console.log(`[radio] yt-dlp: ${line}`);
-      });
-
-      proc.on("close", (code) => {
-        if (code !== 0) {
-          return reject(new Error(`yt-dlp download failed: ${stderr.slice(0, 200)}`));
-        }
-        // yt-dlp may add extension, find the actual file
-        const dir = path.dirname(outputPath);
-        const base = path.basename(outputPath, ".mp3");
-        const files = fs.readdirSync(dir).filter(f => f.startsWith(base));
-        if (files.length > 0) {
-          const actualPath = path.join(dir, files[0]);
-          if (actualPath !== outputPath) {
-            fs.renameSync(actualPath, outputPath);
-          }
-        }
-        resolve(outputPath);
-      });
-
-      proc.on("error", reject);
-    });
   }
 
   // Add a song to the queue by search query

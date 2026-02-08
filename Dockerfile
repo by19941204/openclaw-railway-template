@@ -41,9 +41,7 @@ RUN apt-get update \
     fonts-noto-cjk \
     # Audio tools for radio feature
     ffmpeg \
-    python3-pip \
   && rm -rf /var/lib/apt/lists/* \
-  && pip3 install --break-system-packages yt-dlp \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 # 2. Install OpenClaw globally (as root)
