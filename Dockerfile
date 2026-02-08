@@ -38,7 +38,11 @@ RUN apt-get update \
     libxdmcp6 \
     fonts-liberation \
     fonts-noto-cjk \
-  && rm -rf /var/lib/apt/lists/*
+    # Audio tools for radio feature
+    ffmpeg \
+    python3-pip \
+  && rm -rf /var/lib/apt/lists/* \
+  && pip3 install --break-system-packages yt-dlp
 
 # 2. Install OpenClaw globally (as root)
 RUN npm install -g openclaw@latest
@@ -46,7 +50,8 @@ RUN npm install -g openclaw@latest
 # 3. Create openclaw user BEFORE installing Playwright
 RUN useradd -m -s /bin/bash openclaw \
   && mkdir -p /data && chown openclaw:openclaw /data \
-  && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew
+  && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew \
+  && mkdir -p /tmp/radio && chown openclaw:openclaw /tmp/radio
 
 # 4. Install Playwright Chromium as openclaw user so it goes to /home/openclaw/.cache/ms-playwright/
 USER openclaw

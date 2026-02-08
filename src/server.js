@@ -9,6 +9,8 @@ import httpProxy from "http-proxy";
 import pty from "node-pty";
 import { WebSocketServer } from "ws";
 
+import radio from "./radio.js";
+
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
 const STATE_DIR =
   process.env.OPENCLAW_STATE_DIR?.trim() ||
@@ -915,6 +917,364 @@ proxy.on("proxyReqWs", (proxyReq, req, socket, options, head) => {
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
 });
 
+// ─── Radio routes ───────────────────────────────────────────────────────
+
+// Web player page
+app.get("/radio", (_req, res) => {
+  res.type("text/html").send(RADIO_HTML);
+});
+
+// Audio stream endpoint
+app.get("/radio/stream", (_req, res) => {
+  res.writeHead(200, {
+    "Content-Type": "audio/mpeg",
+    "Cache-Control": "no-cache, no-store",
+    "Connection": "keep-alive",
+    "Transfer-Encoding": "chunked",
+    "Access-Control-Allow-Origin": "*",
+    "ICY-Name": "Crowbot Radio",
+  });
+  radio.addClient(res);
+});
+
+// Add song to queue
+app.post("/radio/play", async (req, res) => {
+  const { query } = req.body || {};
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ ok: false, error: "Missing query" });
+  }
+  const result = await radio.addToQueue(query.trim());
+  return res.json(result);
+});
+
+// Skip current track
+app.post("/radio/skip", (_req, res) => {
+  return res.json(radio.skip());
+});
+
+// Set volume
+app.post("/radio/volume", (req, res) => {
+  const { volume } = req.body || {};
+  if (volume === undefined) {
+    return res.status(400).json({ ok: false, error: "Missing volume (0-100)" });
+  }
+  return res.json(radio.setVolume(volume));
+});
+
+// Now playing
+app.get("/radio/now", (_req, res) => {
+  return res.json(radio.getNowPlaying());
+});
+
+// Queue info
+app.get("/radio/queue", (_req, res) => {
+  return res.json(radio.getQueue());
+});
+
+// Register webhook
+app.post("/radio/webhook", (req, res) => {
+  const { url } = req.body || {};
+  if (!url) {
+    return res.status(400).json({ ok: false, error: "Missing url" });
+  }
+  return res.json(radio.setWebhook(url));
+});
+
+// Radio web player HTML
+const RADIO_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crowbot Radio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    opacity: 0.9;
+  }
+  .player-card {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 30px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .album-art {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    background: rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    animation: spin 20s linear infinite;
+    animation-play-state: paused;
+  }
+  .album-art.playing { animation-play-state: running; }
+  .album-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .album-art .placeholder {
+    font-size: 60px;
+    opacity: 0.3;
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .track-info {
+    margin-bottom: 15px;
+  }
+  .track-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-bottom: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .track-artist {
+    font-size: 0.9em;
+    opacity: 0.6;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.25); }
+  .btn.play-btn {
+    width: 65px;
+    height: 65px;
+    font-size: 26px;
+    background: rgba(255,255,255,0.2);
+  }
+  .volume-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding: 0 10px;
+  }
+  .volume-section span { font-size: 16px; opacity: 0.6; }
+  .volume-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.2);
+    outline: none;
+  }
+  .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+  }
+  .volume-val { font-size: 12px; opacity: 0.5; min-width: 30px; }
+  .listeners {
+    font-size: 0.8em;
+    opacity: 0.4;
+    margin-bottom: 15px;
+  }
+  .queue-section {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .queue-section h3 {
+    font-size: 0.9em;
+    opacity: 0.6;
+    margin-bottom: 10px;
+  }
+  .queue-item {
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .queue-item .q-title { font-size: 0.85em; }
+  .queue-item .q-artist { font-size: 0.75em; opacity: 0.5; }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .status-dot.on { background: #4caf50; }
+  .status-dot.off { background: #666; }
+  .not-playing {
+    opacity: 0.5;
+    padding: 40px 0;
+  }
+</style>
+</head>
+<body>
+<h1>Crowbot Radio</h1>
+<div class="player-card">
+  <div class="album-art" id="albumArt">
+    <span class="placeholder">&#127925;</span>
+  </div>
+  <div class="track-info">
+    <div class="track-title" id="trackTitle">Loading...</div>
+    <div class="track-artist" id="trackArtist"></div>
+  </div>
+  <div class="controls">
+    <button class="btn" id="skipBtn" title="Skip">&#9197;</button>
+    <button class="btn play-btn" id="playBtn" title="Play/Pause">&#9654;</button>
+  </div>
+  <div class="volume-section">
+    <span>&#128264;</span>
+    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+    <span class="volume-val" id="volumeVal">80</span>
+  </div>
+  <div class="listeners" id="listeners"></div>
+</div>
+<div class="queue-section" id="queueSection"></div>
+
+<audio id="audio" preload="none"></audio>
+
+<script>
+const audio = document.getElementById('audio');
+const playBtn = document.getElementById('playBtn');
+const skipBtn = document.getElementById('skipBtn');
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeVal = document.getElementById('volumeVal');
+const trackTitle = document.getElementById('trackTitle');
+const trackArtist = document.getElementById('trackArtist');
+const albumArt = document.getElementById('albumArt');
+const listeners = document.getElementById('listeners');
+const queueSection = document.getElementById('queueSection');
+
+let isAudioPlaying = false;
+
+playBtn.addEventListener('click', () => {
+  if (isAudioPlaying) {
+    audio.pause();
+    audio.src = '';
+    isAudioPlaying = false;
+    playBtn.innerHTML = '&#9654;';
+    albumArt.classList.remove('playing');
+  } else {
+    audio.src = '/radio/stream?' + Date.now();
+    audio.play().catch(e => console.log('play error:', e));
+    isAudioPlaying = true;
+    playBtn.innerHTML = '&#9646;&#9646;';
+    albumArt.classList.add('playing');
+  }
+});
+
+skipBtn.addEventListener('click', async () => {
+  await fetch('/radio/skip', { method: 'POST' });
+  updateNow();
+});
+
+let volumeTimer = null;
+volumeSlider.addEventListener('input', (e) => {
+  volumeVal.textContent = e.target.value;
+  clearTimeout(volumeTimer);
+  volumeTimer = setTimeout(async () => {
+    await fetch('/radio/volume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ volume: Number(e.target.value) }),
+    });
+  }, 300);
+});
+
+async function updateNow() {
+  try {
+    const res = await fetch('/radio/now');
+    const data = await res.json();
+
+    if (data.isPlaying && data.currentTrack) {
+      trackTitle.textContent = data.currentTrack.title;
+      trackArtist.textContent = data.currentTrack.artist;
+      volumeSlider.value = data.volume;
+      volumeVal.textContent = data.volume;
+      listeners.innerHTML = '<span class="status-dot on"></span> ' +
+        data.listeners + ' listener' + (data.listeners !== 1 ? 's' : '') +
+        ' &middot; ' + data.queueLength + ' in queue';
+
+      if (data.currentTrack.thumbnail) {
+        albumArt.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="">';
+      } else {
+        albumArt.innerHTML = '<span class="placeholder">&#127925;</span>';
+      }
+    } else {
+      trackTitle.textContent = 'No music playing';
+      trackArtist.textContent = 'Tell Crowbot what to play';
+      listeners.innerHTML = '<span class="status-dot off"></span> Idle';
+      albumArt.innerHTML = '<span class="placeholder">&#127925;</span>';
+      albumArt.classList.remove('playing');
+    }
+
+    // Update queue
+    const qRes = await fetch('/radio/queue');
+    const qData = await qRes.json();
+    if (qData.queue && qData.queue.length > 0) {
+      queueSection.innerHTML = '<h3>Up Next (' + qData.total + ')</h3>' +
+        qData.queue.map(t =>
+          '<div class="queue-item">' +
+          '<div><div class="q-title">' + t.title + '</div>' +
+          '<div class="q-artist">' + t.artist + '</div></div>' +
+          '</div>'
+        ).join('');
+    } else {
+      queueSection.innerHTML = '';
+    }
+  } catch (e) {
+    console.log('update error:', e);
+  }
+}
+
+// Poll every 3 seconds
+updateNow();
+setInterval(updateNow, 3000);
+</script>
+</body>
+</html>`;
+
+// ─── End radio routes ───────────────────────────────────────────────────
+
 app.use(async (req, res) => {
   if (!isConfigured() && !req.path.startsWith("/setup")) {
     return res.redirect("/setup");
@@ -1001,6 +1361,9 @@ server.on("upgrade", async (req, socket, head) => {
 
 async function gracefulShutdown(signal) {
   console.log(`[wrapper] received ${signal}, shutting down`);
+
+  // Shutdown radio
+  radio.destroy();
 
   if (setupRateLimiter.cleanupInterval) {
     clearInterval(setupRateLimiter.cleanupInterval);
