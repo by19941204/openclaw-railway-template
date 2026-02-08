@@ -1334,6 +1334,30 @@ function autoPlay() {
   });
 }
 autoPlay();
+
+// Auto-reconnect when stream drops (e.g. after deploy restart)
+audio.addEventListener('error', () => {
+  if (isAudioPlaying) {
+    console.log('stream error, reconnecting in 2s...');
+    setTimeout(() => {
+      if (isAudioPlaying) {
+        audio.src = '/radio/stream?' + Date.now();
+        audio.play().catch(() => {});
+      }
+    }, 2000);
+  }
+});
+audio.addEventListener('stalled', () => {
+  if (isAudioPlaying) {
+    console.log('stream stalled, reconnecting in 3s...');
+    setTimeout(() => {
+      if (isAudioPlaying) {
+        audio.src = '/radio/stream?' + Date.now();
+        audio.play().catch(() => {});
+      }
+    }, 3000);
+  }
+});
 </script>
 </body>
 </html>`;
