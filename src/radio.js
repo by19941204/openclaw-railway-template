@@ -87,6 +87,7 @@ class Radio extends EventEmitter {
         "--no-playlist",
         "--default-search", "ytsearch1",
         "--remote-components", "ejs:github",
+        "--proxy", "socks5://127.0.0.1:9091",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
@@ -134,6 +135,7 @@ class Radio extends EventEmitter {
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
         "--remote-components", "ejs:github",
+        "--proxy", "socks5://127.0.0.1:9091",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
