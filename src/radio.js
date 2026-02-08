@@ -222,8 +222,8 @@ class Radio extends EventEmitter {
 
     console.log(`[radio] now playing: "${track.title}" by ${track.artist}`);
 
-    // Check remaining queue and notify if low
-    if (this.queue.length <= 1) {
+    // Check remaining queue and notify if low (< 3 songs)
+    if (this.queue.length < 3) {
       this._notifyWebhook("queue_low");
     }
 
