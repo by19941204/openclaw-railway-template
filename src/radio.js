@@ -86,7 +86,7 @@ class Radio extends EventEmitter {
         "--dump-json",
         "--no-playlist",
         "--default-search", "ytsearch1",
-        "--remote-components",
+        "--remote-components", "ejs:github",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
@@ -133,7 +133,7 @@ class Radio extends EventEmitter {
         "--audio-format", "mp3",
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
-        "--remote-components",
+        "--remote-components", "ejs:github",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
