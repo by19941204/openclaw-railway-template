@@ -105,10 +105,11 @@ class Radio extends EventEmitter {
         "--dump-json",
         "--no-playlist",
         "--default-search", "ytsearch1",
-        "--socket-timeout", "30",  // 30s socket timeout (default 20s too short through proxy)
-        "--retries", "5",          // more retries for proxy latency
+        "--socket-timeout", "30",
+        "--retries", "5",
+        "--force-ipv4",            // avoid IPv6 issues through WARP tunnel
+        "--proxy", WARP_PROXY,     // always route through WARP
       ];
-      args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
@@ -156,8 +157,9 @@ class Radio extends EventEmitter {
         "--no-playlist",
         "--socket-timeout", "30",
         "--retries", "5",
+        "--force-ipv4",
+        "--proxy", WARP_PROXY,
       ];
-      args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
