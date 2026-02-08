@@ -86,6 +86,7 @@ class Radio extends EventEmitter {
         "--dump-json",
         "--no-playlist",
         "--default-search", "ytsearch1",
+        "--remote-components",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
@@ -93,7 +94,7 @@ class Radio extends EventEmitter {
       }
       args.push(query);
 
-      const proc = spawn("yt-dlp", args, { timeout: 30000 });
+      const proc = spawn("yt-dlp", args, { timeout: 60000 });
       let stdout = "";
       let stderr = "";
 
@@ -130,6 +131,7 @@ class Radio extends EventEmitter {
         "--audio-format", "mp3",
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
+        "--remote-components",
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
