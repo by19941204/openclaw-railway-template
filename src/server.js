@@ -1036,8 +1036,10 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 .vinyl-spin.playing { animation-play-state: running; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.playlist-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.playlist-scroll::-webkit-scrollbar { width: 3px; }
+.playlist-scroll::-webkit-scrollbar-track { background: transparent; }
+.playlist-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 </style>
 </head>
 <body class="bg-background-dark text-white h-screen flex flex-col relative overflow-hidden">
@@ -1048,12 +1050,12 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 
 <!-- Header -->
 <div class="w-full flex justify-between items-center px-6 pt-14 pb-2 z-20 relative">
-  <div class="flex items-center space-x-1.5 opacity-50">
+  <div class="w-12 flex items-center space-x-1.5 opacity-50">
     <span class="block w-1.5 h-1.5 rounded-full bg-accent-red" style="animation: pulse-dot 2s ease-in-out infinite"></span>
     <span class="text-[10px] font-mono" id="listenersText">0</span>
   </div>
   <span class="text-xs tracking-[0.25em] font-semibold text-gray-300 uppercase opacity-80">NOIR FM</span>
-  <div class="w-10"></div>
+  <div class="w-12"></div>
 </div>
 
 <!-- Vinyl -->
@@ -1103,13 +1105,11 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 <!-- Controls -->
 <div class="flex items-center justify-center px-2 pt-2 pb-3 z-20 relative">
   <div class="flex items-center space-x-10">
-    <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
-      <span class="material-icons-round text-4xl">skip_next</span>
-    </button>
+    <div class="w-14"></div>
     <button class="p-4 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all" id="playBtn">
       <span class="material-icons-round text-3xl text-white" id="playIcon">play_arrow</span>
     </button>
-    <button class="text-white/40 p-4 opacity-0 pointer-events-none -m-2">
+    <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
       <span class="material-icons-round text-4xl">skip_next</span>
     </button>
   </div>
@@ -1118,9 +1118,9 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 <!-- Playlist Panel -->
 <div class="w-full rounded-t-2xl bg-[#151517] shadow-[0_-15px_40px_rgba(0,0,0,0.6)] z-20 flex flex-col relative flex-1">
   <div class="w-10 h-1 bg-gray-600 rounded-full mx-auto mt-3 mb-1"></div>
-  <div class="flex-1 w-full px-6 overflow-y-auto no-scrollbar pb-8">
+  <div class="w-full px-6 overflow-y-auto playlist-scroll pb-8" style="max-height:40vh">
     <div class="sticky top-0 pt-2 pb-3 z-10 flex justify-between items-center bg-[#151517]">
-      <span class="text-xs font-bold text-white/30 uppercase tracking-widest">Playing Next</span>
+      <span class="text-xs font-bold text-white/30 uppercase tracking-widest">Playlist</span>
       <span class="text-[10px] font-mono text-white/20 bg-white/5 px-2 py-1 rounded" id="playlistCount">0 songs</span>
     </div>
     <div class="space-y-1" id="playlistItems">
@@ -1276,7 +1276,7 @@ async function updateNow() {
         } else {
           return '<div class="flex items-center justify-between px-4 py-3 opacity-50 hover:opacity-80 transition-opacity cursor-pointer">'
             + '<div class="flex items-center space-x-3 overflow-hidden">'
-            + '<span class="text-xs font-mono text-white/30 w-4 text-center">' + String(i + 1).padStart(2, '0') + '</span>'
+            + '<span class="text-xs font-mono text-white/30 w-4 text-center">' + String(i).padStart(2, '0') + '</span>'
             + '<div class="flex flex-col overflow-hidden">'
             + '<p class="text-sm text-white/70 font-medium truncate">' + t.title + '</p>'
             + '<p class="text-[10px] text-white/30 truncate">' + t.artist + '</p>'
