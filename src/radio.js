@@ -8,27 +8,23 @@ const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
 const WARP_PROXY = "socks5://127.0.0.1:9091";
 
-// WARP proxy: always use it for yt-dlp if sing-box is running.
-// The entrypoint.sh confirms warp=on before starting Node, so we trust it's available.
-// We still check periodically for logging purposes, but yt-dlp always gets --proxy.
-let warpAvailable = true; // optimistic default — entrypoint confirmed warp=on
+// WARP proxy: ALWAYS pass --proxy to yt-dlp unconditionally.
+// sing-box runs as a sidecar (started by entrypoint.sh before Node).
+// Even if Cloudflare trace says warp=off, traffic still exits via Cloudflare IP
+// which bypasses YouTube's datacenter IP blocks. We only log status for debugging.
 function checkWarp() {
   try {
     const out = execSync(`curl -sf --max-time 8 --socks5-hostname 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace`, { encoding: "utf-8", timeout: 15000 });
-    warpAvailable = out.includes("warp=on");
-    if (!warpAvailable) {
-      console.log(`[radio] WARP check response (no warp=on): ${out.slice(0, 200)}`);
-    }
+    const warpLine = out.split("\n").find(l => l.startsWith("warp=")) || "warp=?";
+    console.log(`[radio] WARP proxy check: ${warpLine.trim()} (proxy is alive, will use it)`);
   } catch (err) {
-    // Even if check fails, keep trying proxy — better than direct IP which is blocked
-    console.log(`[radio] WARP check failed: ${err.message?.slice(0, 150) || "unknown error"}`);
+    console.log(`[radio] WARP proxy check failed (will still use --proxy): ${err.message?.slice(0, 150) || "unknown"}`);
   }
-  console.log(`[radio] WARP proxy: ${warpAvailable ? "available" : "status unknown (will still try)"}`);
 }
-// Check on startup after a delay (for logging only)
+// Check on startup after a delay (for logging only — does NOT affect --proxy usage)
 setTimeout(checkWarp, 15000);
-// Re-check every 60s
-setInterval(checkWarp, 60000);
+// Re-check every 5 min for debugging
+setInterval(checkWarp, 300000);
 
 // Write YouTube cookies from env var (base64 encoded) to file on startup
 function initCookies() {
@@ -111,7 +107,7 @@ class Radio extends EventEmitter {
         "--default-search", "ytsearch1",
         "--remote-components", "ejs:github",
       ];
-      if (warpAvailable) args.push("--proxy", WARP_PROXY);
+      args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
@@ -159,7 +155,7 @@ class Radio extends EventEmitter {
         "--no-playlist",
         "--remote-components", "ejs:github",
       ];
-      if (warpAvailable) args.push("--proxy", WARP_PROXY);
+      args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
