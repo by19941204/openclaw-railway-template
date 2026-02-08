@@ -8,20 +8,26 @@ const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
 const WARP_PROXY = "socks5://127.0.0.1:9091";
 
-// Check if WARP proxy is available (set once at startup, re-checked periodically)
-let warpAvailable = false;
+// WARP proxy: always use it for yt-dlp if sing-box is running.
+// The entrypoint.sh confirms warp=on before starting Node, so we trust it's available.
+// We still check periodically for logging purposes, but yt-dlp always gets --proxy.
+let warpAvailable = true; // optimistic default — entrypoint confirmed warp=on
 function checkWarp() {
   try {
-    const out = execSync(`curl -sf --max-time 3 --socks5 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null`, { encoding: "utf-8" });
+    const out = execSync(`curl -sf --max-time 8 --socks5-hostname 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace`, { encoding: "utf-8", timeout: 15000 });
     warpAvailable = out.includes("warp=on");
-  } catch {
-    warpAvailable = false;
+    if (!warpAvailable) {
+      console.log(`[radio] WARP check response (no warp=on): ${out.slice(0, 200)}`);
+    }
+  } catch (err) {
+    // Even if check fails, keep trying proxy — better than direct IP which is blocked
+    console.log(`[radio] WARP check failed: ${err.message?.slice(0, 150) || "unknown error"}`);
   }
-  console.log(`[radio] WARP proxy: ${warpAvailable ? "available" : "not available"}`);
+  console.log(`[radio] WARP proxy: ${warpAvailable ? "available" : "status unknown (will still try)"}`);
 }
-// Check on startup after a short delay (give WARP time to connect)
-setTimeout(checkWarp, 5000);
-// Re-check every 60s in case WARP recovers or drops
+// Check on startup after a delay (for logging only)
+setTimeout(checkWarp, 15000);
+// Re-check every 60s
 setInterval(checkWarp, 60000);
 
 // Write YouTube cookies from env var (base64 encoded) to file on startup
