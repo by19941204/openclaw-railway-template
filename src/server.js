@@ -1048,12 +1048,20 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
   background-image: linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0.05) 50%, rgba(0,0,0,0.05) 100%);
   background-size: 4px 4px;
 }
-/* Volume slider custom */
-input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
-input[type=range]::-webkit-slider-track { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+/* Volume slider - large touch targets for mobile */
+input[type=range] {
+  -webkit-appearance: none; appearance: none; background: transparent;
+  height: 44px; /* iOS minimum touch target */
+  cursor: pointer;
+  touch-action: none; /* prevent scroll interference */
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px;
+}
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-  background: white; margin-top: -5.5px; box-shadow: 0 0 4px rgba(0,0,0,0.4);
+  -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+  background: white; margin-top: -9px;
+  box-shadow: 0 0 6px rgba(0,0,0,0.4), 0 0 12px rgba(255,255,255,0.1);
 }
 </style>
 </head>
@@ -1112,8 +1120,8 @@ input[type=range]::-webkit-slider-thumb {
     <!-- Controls -->
     <div class="flex items-center justify-center px-2 mb-4">
       <div class="flex items-center space-x-10">
-        <button class="text-white/40 hover:text-white transition-colors p-2 active:scale-90" id="skipBtn">
-          <span class="material-symbols-outlined text-3xl">skip_next</span>
+        <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
+          <span class="material-symbols-outlined text-4xl">skip_next</span>
         </button>
         <button class="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)]" id="playBtn">
           <span class="material-symbols-outlined text-3xl" style="font-variation-settings:'FILL' 1" id="playIcon">play_arrow</span>
