@@ -982,402 +982,170 @@ app.post("/radio/webhook", (req, res) => {
 
 // Radio web player HTML
 const RADIO_HTML = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Crowbot FM</title>
+<title>Noir FM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        midnight: { 900: "#02040a", 800: "#080b14", 700: "#0f121e" },
+        ruby: { glow: "#ff3333", base: "#dd001b", dark: "#8a0011" },
+      },
+      fontFamily: {
+        sans: ["Inter", "sans-serif"],
+        serif: ["Playfair Display", "serif"],
+      },
+      boxShadow: {
+        'vinyl-deep': '0 20px 50px -10px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05)',
+        'glass': '0 -4px 30px rgba(0,0,0,0.5)',
+        'titanium': '2px 4px 8px rgba(0,0,0,0.5), inset 1px 1px 2px rgba(255,255,255,0.3)',
+      },
+    },
+  },
+};
+</script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root {
-    --red: #ec4141;
-    --red-dark: #c93b3b;
-    --bg: #1a1a2e;
-    --bg-card: #16213e;
-    --bg-item: #1c2a4a;
-    --bg-item-hover: #243354;
-    --text: #f0f0f0;
-    --text-sub: #8a8a9a;
-    --text-dim: #5a5a6a;
-    --needle: #b8860b;
-  }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    min-height: 100dvh;
-    overflow-x: hidden;
-  }
-
-  /* Header */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px 20px;
-    position: relative;
-  }
-  .header h1 {
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 1px;
-  }
-  .header .listeners-badge {
-    position: absolute;
-    right: 20px;
-    font-size: 11px;
-    color: var(--text-sub);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .live-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--red);
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* Vinyl record */
-  .vinyl-container {
-    position: relative;
-    width: 280px;
-    height: 280px;
-    margin: 10px auto 0;
-  }
-  .vinyl {
-    width: 280px;
-    height: 280px;
-    border-radius: 50%;
-    background: radial-gradient(circle at center,
-      #111 0%, #111 15%,
-      #222 15.5%, #1a1a1a 20%,
-      #222 25%, #1d1d1d 30%,
-      #252525 35%, #1e1e1e 40%,
-      #222 45%, #1a1a1a 48%,
-      #111 48.5%, #111 100%
-    );
-    position: relative;
-    animation: spin 8s linear infinite;
-    animation-play-state: paused;
-    box-shadow: 0 0 40px rgba(0,0,0,0.5);
-  }
-  .vinyl.playing { animation-play-state: running; }
-  .vinyl-cover {
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 120px; height: 120px;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    overflow: hidden;
-    background: #333;
-    border: 3px solid #111;
-  }
-  .vinyl-cover img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
-  .vinyl-cover .placeholder-icon {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    color: #555;
-    background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
-  }
-  .vinyl-hole {
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    background: var(--bg);
-    transform: translate(-50%, -50%);
-    z-index: 2;
-    border: 2px solid #333;
-  }
-  /* Needle arm */
-  .needle {
-    position: absolute;
-    top: -10px; right: 30px;
-    width: 80px; height: 120px;
-    transform-origin: top right;
-    transform: rotate(-25deg);
-    transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 3;
-  }
-  .needle.active { transform: rotate(0deg); }
-  .needle-arm {
-    width: 3px; height: 100px;
-    background: linear-gradient(to bottom, var(--needle), #8B6914);
-    margin-left: auto;
-    margin-right: 10px;
-    border-radius: 2px;
-    box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-  }
-  .needle-head {
-    width: 10px; height: 16px;
-    background: #666;
-    margin-left: auto;
-    margin-right: 7px;
-    border-radius: 0 0 3px 3px;
-  }
-  .needle-pivot {
-    width: 18px; height: 18px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #ddd, #999);
-    position: absolute;
-    top: -5px; right: 2px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-  }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-  /* Track info */
-  .track-section {
-    text-align: center;
-    padding: 20px 24px 10px;
-  }
-  .track-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 340px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .track-artist {
-    font-size: 13px;
-    color: var(--text-sub);
-  }
-
-  /* Controls */
-  .controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    padding: 16px 0;
-  }
-  .ctrl-btn {
-    border: none;
-    background: none;
-    color: var(--text);
-    cursor: pointer;
-    padding: 8px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .ctrl-btn svg { display: block; }
-  .ctrl-btn.play-btn {
-    width: 56px; height: 56px;
-    border-radius: 50%;
-    background: var(--red);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s, transform 0.1s;
-  }
-  .ctrl-btn.play-btn:active { transform: scale(0.93); background: var(--red-dark); }
-
-  /* Volume */
-  .volume-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 36px 12px;
-  }
-  .vol-icon { color: var(--text-dim); font-size: 14px; }
-  .volume-slider {
-    flex: 1;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 3px;
-    border-radius: 2px;
-    background: #333;
-    outline: none;
-  }
-  .volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    background: var(--red);
-    border: 2px solid #fff;
-    box-shadow: 0 0 4px rgba(0,0,0,0.3);
-  }
-
-  /* Playlist */
-  .playlist {
-    background: var(--bg-card);
-    border-radius: 20px 20px 0 0;
-    min-height: 200px;
-    padding: 20px 0 40px;
-    margin-top: 8px;
-  }
-  .playlist-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px 14px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    margin-bottom: 4px;
-  }
-  .playlist-header h2 {
-    font-size: 15px;
-    font-weight: 600;
-  }
-  .playlist-count {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .playlist-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 20px;
-    gap: 12px;
-    transition: background 0.15s;
-  }
-  .playlist-item:active { background: var(--bg-item-hover); }
-  .playlist-item.now-playing { background: var(--bg-item); }
-  .pl-index {
-    width: 24px;
-    font-size: 13px;
-    color: var(--text-dim);
-    text-align: center;
-    flex-shrink: 0;
-  }
-  .pl-index.active { color: var(--red); }
-  .pl-thumb {
-    width: 42px; height: 42px;
-    border-radius: 6px;
-    overflow: hidden;
-    flex-shrink: 0;
-    background: #2a2a3a;
-  }
-  .pl-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .pl-info {
-    flex: 1;
-    min-width: 0;
-  }
-  .pl-title {
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .pl-title.active { color: var(--red); }
-  .pl-artist {
-    font-size: 12px;
-    color: var(--text-sub);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .pl-duration {
-    font-size: 12px;
-    color: var(--text-dim);
-    flex-shrink: 0;
-  }
-  .pl-eq {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 16px;
-  }
-  .pl-eq span {
-    width: 3px;
-    background: var(--red);
-    border-radius: 1px;
-    animation: eqBar 0.8s ease-in-out infinite alternate;
-  }
-  .pl-eq span:nth-child(1) { height: 8px; animation-delay: 0s; }
-  .pl-eq span:nth-child(2) { height: 14px; animation-delay: 0.2s; }
-  .pl-eq span:nth-child(3) { height: 6px; animation-delay: 0.4s; }
-  @keyframes eqBar {
-    0% { height: 4px; }
-    100% { height: 16px; }
-  }
-
-  .empty-playlist {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-dim);
-    font-size: 13px;
-  }
-
-  .idle-state {
-    text-align: center;
-    padding: 8px 0;
-    color: var(--text-dim);
-    font-size: 12px;
-  }
+body { font-family: "Inter", sans-serif; min-height: 100dvh; }
+.noise-bg {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1; opacity: 0.03;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+.vinyl-grooves {
+  background: repeating-radial-gradient(#111 0, #111 2px, #1c1c1c 3px, #1c1c1c 4px);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+}
+.vinyl-reflection {
+  background: conic-gradient(from 45deg, transparent 0%, rgba(255,255,255,0.08) 15%, transparent 30%, transparent 50%, rgba(255,255,255,0.08) 65%, transparent 80%, transparent 100%);
+  filter: blur(1px);
+}
+.tonearm-pivot {
+  transform-origin: 50% 10%;
+  transform: rotate(-20deg);
+  transition: transform 0.5s ease-in-out;
+}
+.tonearm-pivot.active { transform: rotate(12deg); }
+.vinyl-spin { animation: spin 8s linear infinite; animation-play-state: paused; }
+.vinyl-spin.playing { animation-play-state: running; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes eq1 { 0% { height: 4px; } 100% { height: 14px; } }
+@keyframes eq2 { 0% { height: 6px; } 100% { height: 16px; } }
+@keyframes eq3 { 0% { height: 3px; } 100% { height: 12px; } }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.titanium-texture {
+  background-image: linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0.05) 50%, rgba(0,0,0,0.05) 100%);
+  background-size: 4px 4px;
+}
+/* Volume slider custom */
+input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
+input[type=range]::-webkit-slider-track { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: white; margin-top: -5.5px; box-shadow: 0 0 4px rgba(0,0,0,0.4);
+}
 </style>
 </head>
-<body>
+<body class="bg-gradient-to-b from-[#2a1f2d] to-[#121212] text-white h-screen flex flex-col relative overflow-hidden">
 
-<div class="header">
-  <h1>Crowbot FM</h1>
-  <div class="listeners-badge" id="listenersBadge">
-    <span class="live-dot"></span>
-    <span id="listenersText">0</span>
+<div class="noise-bg"></div>
+
+<!-- Header -->
+<div class="w-full flex justify-between items-center px-6 pt-14 pb-2 z-20 relative">
+  <div class="flex items-center space-x-1.5 opacity-50">
+    <span class="block w-1.5 h-1.5 rounded-full bg-ruby-base" style="animation: pulse-dot 2s ease-in-out infinite"></span>
+    <span class="text-[10px] font-mono" id="listenersText">0</span>
   </div>
+  <h1 class="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 font-sans">Noir FM</h1>
+  <div class="w-10"></div>
 </div>
 
-<div class="vinyl-container">
-  <div class="needle" id="needle">
-    <div class="needle-pivot"></div>
-    <div class="needle-arm"></div>
-    <div class="needle-head"></div>
-  </div>
-  <div class="vinyl" id="vinyl">
-    <div class="vinyl-cover" id="vinylCover">
-      <div class="placeholder-icon">&#9835;</div>
+<!-- Vinyl -->
+<div class="flex-none w-full flex items-center justify-center z-10 relative" style="padding-top:8px">
+  <div class="relative w-[280px] h-[260px] flex items-center justify-center">
+    <!-- Tonearm -->
+    <div class="tonearm-pivot absolute -top-8 right-6 w-10 h-48 z-30 pointer-events-none drop-shadow-2xl" id="needle">
+      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-40 rounded-full shadow-titanium titanium-texture" style="background:linear-gradient(90deg,#888,#ddd 20%,#bbb 40%,#999 60%,#eee 80%,#777)"></div>
+      <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 shadow-lg border border-gray-400 flex items-center justify-center">
+        <div class="w-4 h-4 rounded-full bg-gray-600 shadow-inner"></div>
+      </div>
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-5 h-8 bg-gradient-to-b from-gray-300 to-gray-400 rounded-sm shadow-lg flex items-end justify-center pb-1">
+        <div class="w-1 h-2 bg-black/50"></div>
+      </div>
     </div>
-    <div class="vinyl-hole"></div>
+    <!-- Record -->
+    <div class="vinyl-spin w-[260px] h-[260px] rounded-full bg-[#0a0a0a] shadow-vinyl-deep relative flex items-center justify-center overflow-hidden border border-white/5" id="vinyl">
+      <div class="absolute inset-1 rounded-full vinyl-grooves opacity-90"></div>
+      <div class="absolute inset-0 rounded-full vinyl-reflection opacity-40 mix-blend-soft-light pointer-events-none"></div>
+      <div class="relative z-10 w-24 h-24 rounded-full bg-gradient-to-br from-red-900 to-black flex items-center justify-center shadow-inner border border-white/10 overflow-hidden" id="vinylCover">
+        <div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]" id="coverPlaceholder">&#9835;</div>
+      </div>
+      <div class="absolute top-1/2 left-1/2 w-1.5 h-1.5 bg-black rounded-full shadow-[0_0_2px_rgba(255,255,255,0.5)] -translate-x-1/2 -translate-y-1/2 z-20"></div>
+    </div>
   </div>
 </div>
 
-<div class="track-section">
-  <div class="track-title" id="trackTitle">Crowbot FM</div>
-  <div class="track-artist" id="trackArtist">&#8212;</div>
-</div>
+<!-- Bottom Panel -->
+<div class="w-full bg-black/40 backdrop-blur-2xl border-t border-white/5 rounded-t-[40px] shadow-glass z-20 flex flex-col relative flex-1 mt-[-10px]">
+  <div class="px-8 pt-7 pb-2 flex flex-col w-full">
+    <!-- Track Info -->
+    <div class="flex justify-between items-end mb-5">
+      <div class="overflow-hidden flex-1 mr-4">
+        <h2 class="text-2xl font-serif font-semibold text-white tracking-wide mb-1 truncate" id="trackTitle">Noir FM</h2>
+        <p class="text-sm font-medium tracking-wide uppercase truncate">
+          <span class="text-ruby-base" id="trackArtist">&mdash;</span>
+        </p>
+      </div>
+    </div>
 
-<div class="controls">
-  <button class="ctrl-btn" id="skipBtn" title="Next">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-  </button>
-  <button class="ctrl-btn play-btn" id="playBtn" title="Play">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" id="playIcon"><polygon points="9,6 9,18 18,12"/></svg>
-  </button>
-  <button class="ctrl-btn" style="visibility:hidden">
-    <svg width="28" height="28" viewBox="0 0 24 24"></svg>
-  </button>
-</div>
+    <!-- Controls -->
+    <div class="flex items-center justify-center px-2 mb-4">
+      <div class="flex items-center space-x-10">
+        <button class="text-white/40 hover:text-white transition-colors p-2 active:scale-90" id="skipBtn">
+          <span class="material-symbols-outlined text-3xl">skip_next</span>
+        </button>
+        <button class="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)]" id="playBtn">
+          <span class="material-symbols-outlined text-3xl" style="font-variation-settings:'FILL' 1" id="playIcon">play_arrow</span>
+        </button>
+        <button class="text-white/40 p-2 opacity-0 pointer-events-none">
+          <span class="material-symbols-outlined text-3xl">skip_next</span>
+        </button>
+      </div>
+    </div>
 
-<div class="volume-bar">
-  <span class="vol-icon">&#128264;</span>
-  <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
-</div>
-
-<div class="playlist" id="playlist">
-  <div class="playlist-header">
-    <h2>&#127926; Playlist</h2>
-    <span class="playlist-count" id="playlistCount">0 songs</span>
+    <!-- Volume -->
+    <div class="flex items-center gap-3 px-2 mb-2">
+      <span class="material-symbols-outlined text-white/30 text-lg">volume_down</span>
+      <input type="range" class="flex-1 cursor-pointer" id="volumeSlider" min="0" max="100" value="80">
+      <span class="material-symbols-outlined text-white/30 text-lg">volume_up</span>
+    </div>
   </div>
-  <div id="playlistItems">
-    <div class="empty-playlist">Tell Crowbot what to play</div>
+
+  <!-- Playlist -->
+  <div class="flex-1 w-full px-6 overflow-y-auto no-scrollbar pb-8 mt-1">
+    <div class="sticky top-0 pt-2 pb-3 z-10 flex justify-between items-center backdrop-blur-sm">
+      <span class="text-xs font-bold text-white/30 uppercase tracking-widest">Playing Next</span>
+      <span class="text-[10px] font-mono text-white/20 bg-white/5 px-2 py-1 rounded" id="playlistCount">0 songs</span>
+    </div>
+    <div class="space-y-1" id="playlistItems">
+      <div class="text-center py-10 text-white/20 text-sm">Tell Crowbot what to play</div>
+    </div>
   </div>
 </div>
+
+<!-- Home indicator -->
+<div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full z-50"></div>
 
 <audio id="audio" preload="none"></audio>
 
@@ -1410,14 +1178,14 @@ playBtn.addEventListener('click', () => {
     audio.pause();
     audio.src = '';
     isAudioPlaying = false;
-    playIcon.innerHTML = '<polygon points="9,6 9,18 18,12"/>';
+    playIcon.textContent = 'play_arrow';
     vinyl.classList.remove('playing');
     needle.classList.remove('active');
   } else {
     audio.src = '/radio/stream?' + Date.now();
     audio.play().catch(e => console.log('play error:', e));
     isAudioPlaying = true;
-    playIcon.innerHTML = '<rect x="7" y="6" width="3.5" height="12" rx="1"/><rect x="13.5" y="6" width="3.5" height="12" rx="1"/>';
+    playIcon.textContent = 'pause';
     vinyl.classList.add('playing');
     needle.classList.add('active');
   }
@@ -1452,16 +1220,15 @@ async function updateNow() {
     listenersText.textContent = data.listeners || 0;
     volumeSlider.value = data.volume;
 
-    // Build full playlist: current + queue
     let items = [];
     if (data.isPlaying && data.currentTrack) {
       trackTitle.textContent = data.currentTrack.title;
       trackArtist.textContent = data.currentTrack.artist;
 
       if (data.currentTrack.thumbnail) {
-        vinylCover.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="">';
+        vinylCover.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="" class="w-full h-full object-cover">';
       } else {
-        vinylCover.innerHTML = '<div class="placeholder-icon">&#9835;</div>';
+        vinylCover.innerHTML = '<div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]">&#9835;</div>';
       }
 
       items.push({
@@ -1472,9 +1239,9 @@ async function updateNow() {
         isCurrent: true
       });
     } else {
-      trackTitle.textContent = 'Crowbot FM';
+      trackTitle.textContent = 'Noir FM';
       trackArtist.textContent = '\\u2014';
-      vinylCover.innerHTML = '<div class="placeholder-icon">&#9835;</div>';
+      vinylCover.innerHTML = '<div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]">&#9835;</div>';
       if (isAudioPlaying) {
         vinyl.classList.remove('playing');
         needle.classList.remove('active');
@@ -1497,27 +1264,32 @@ async function updateNow() {
 
     if (items.length > 0) {
       playlistItems.innerHTML = items.map((t, i) => {
-        const cls = t.isCurrent ? ' now-playing' : '';
-        const idxCls = t.isCurrent ? ' active' : '';
-        const titleCls = t.isCurrent ? ' active' : '';
-        const idx = t.isCurrent
-          ? '<div class="pl-eq"><span></span><span></span><span></span></div>'
-          : '<span>' + (i + 1) + '</span>';
-        const thumb = t.thumbnail
-          ? '<img src="' + t.thumbnail + '" alt="">'
-          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;font-size:16px">&#9835;</div>';
-        return '<div class="playlist-item' + cls + '">'
-          + '<div class="pl-index' + idxCls + '">' + idx + '</div>'
-          + '<div class="pl-thumb">' + thumb + '</div>'
-          + '<div class="pl-info">'
-          + '<div class="pl-title' + titleCls + '">' + t.title + '</div>'
-          + '<div class="pl-artist">' + t.artist + '</div>'
-          + '</div>'
-          + '<div class="pl-duration">' + formatDuration(t.duration) + '</div>'
-          + '</div>';
+        if (t.isCurrent) {
+          return '<div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">'
+            + '<div class="flex items-center space-x-3 overflow-hidden">'
+            + '<div class="w-4 h-4 flex items-center justify-center">'
+            + '<span class="block w-1.5 h-1.5 bg-ruby-base rounded-full" style="animation:pulse-dot 2s ease-in-out infinite"></span>'
+            + '</div>'
+            + '<div class="flex flex-col overflow-hidden">'
+            + '<p class="text-sm text-white font-medium truncate">' + t.title + '</p>'
+            + '<p class="text-[10px] text-white/40 truncate">' + t.artist + '</p>'
+            + '</div></div>'
+            + '<span class="text-xs font-mono text-ruby-base font-medium">' + formatDuration(t.duration) + '</span>'
+            + '</div>';
+        } else {
+          return '<div class="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">'
+            + '<div class="flex items-center space-x-3 overflow-hidden">'
+            + '<span class="text-xs font-mono text-white/20 w-4 text-center">' + String(i + 1).padStart(2, '0') + '</span>'
+            + '<div class="flex flex-col overflow-hidden">'
+            + '<p class="text-sm text-white/70 font-medium truncate group-hover:text-white transition-colors">' + t.title + '</p>'
+            + '<p class="text-[10px] text-white/30 truncate">' + t.artist + '</p>'
+            + '</div></div>'
+            + '<span class="text-xs font-mono text-white/30 group-hover:text-white/60">' + formatDuration(t.duration) + '</span>'
+            + '</div>';
+        }
       }).join('');
     } else {
-      playlistItems.innerHTML = '<div class="empty-playlist">Tell Crowbot what to play</div>';
+      playlistItems.innerHTML = '<div class="text-center py-10 text-white/20 text-sm">Tell Crowbot what to play</div>';
     }
   } catch (e) {
     console.log('update error:', e);
