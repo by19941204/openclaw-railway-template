@@ -1298,6 +1298,34 @@ async function updateNow() {
 
 updateNow();
 setInterval(updateNow, 3000);
+
+// Auto-play on page load
+function autoPlay() {
+  audio.src = '/radio/stream?' + Date.now();
+  audio.play().then(() => {
+    isAudioPlaying = true;
+    playIcon.textContent = 'pause';
+    vinyl.classList.add('playing');
+    needle.classList.add('active');
+  }).catch(() => {
+    // Browser blocked autoplay, wait for user interaction
+    isAudioPlaying = false;
+    playIcon.textContent = 'play_arrow';
+    document.addEventListener('click', function once() {
+      if (!isAudioPlaying) {
+        audio.src = '/radio/stream?' + Date.now();
+        audio.play().then(() => {
+          isAudioPlaying = true;
+          playIcon.textContent = 'pause';
+          vinyl.classList.add('playing');
+          needle.classList.add('active');
+        }).catch(() => {});
+      }
+      document.removeEventListener('click', once);
+    }, { once: true });
+  });
+}
+autoPlay();
 </script>
 </body>
 </html>`;
