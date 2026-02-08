@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
@@ -11,7 +11,6 @@ const WARP_PROXY = "socks5://127.0.0.1:9091";
 // Check if WARP proxy is available (set once at startup, re-checked periodically)
 let warpAvailable = false;
 function checkWarp() {
-  const { execSync } = require("node:child_process");
   try {
     const out = execSync(`curl -sf --max-time 3 --socks5 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null`, { encoding: "utf-8" });
     warpAvailable = out.includes("warp=on");
