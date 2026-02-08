@@ -105,7 +105,8 @@ class Radio extends EventEmitter {
         "--dump-json",
         "--no-playlist",
         "--default-search", "ytsearch1",
-        "--remote-components", "ejs:github",
+        "--socket-timeout", "30",  // 30s socket timeout (default 20s too short through proxy)
+        "--retries", "5",          // more retries for proxy latency
       ];
       args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
@@ -116,7 +117,7 @@ class Radio extends EventEmitter {
       args.push("--", query);
 
       console.log(`[radio] yt-dlp info argv:`, JSON.stringify(args));
-      const proc = spawn("yt-dlp", args, { timeout: 60000 });
+      const proc = spawn("yt-dlp", args, { timeout: 120000 }); // 2min for search (proxy adds latency)
       let stdout = "";
       let stderr = "";
 
@@ -153,7 +154,8 @@ class Radio extends EventEmitter {
         "--audio-format", "mp3",
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
-        "--remote-components", "ejs:github",
+        "--socket-timeout", "30",
+        "--retries", "5",
       ];
       args.push("--proxy", WARP_PROXY); // always route through WARP
       // Add cookies if available
@@ -163,7 +165,7 @@ class Radio extends EventEmitter {
       args.push("-o", outputPath, "--", url);
 
       console.log(`[radio] download argv:`, JSON.stringify(args));
-      const proc = spawn("yt-dlp", args, { timeout: 120000 });
+      const proc = spawn("yt-dlp", args, { timeout: 300000 }); // 5min for download (proxy + conversion)
       let stderr = "";
 
       proc.stderr.on("data", (d) => (stderr += d.toString()));
