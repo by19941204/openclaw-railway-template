@@ -988,7 +988,7 @@ const RADIO_HTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Noir FM</title>
+<title>Radio</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -1067,7 +1067,7 @@ input[type=range]::-webkit-slider-thumb {
     <span class="block w-1.5 h-1.5 rounded-full bg-ruby-base" style="animation: pulse-dot 2s ease-in-out infinite"></span>
     <span class="text-[10px] font-mono" id="listenersText">0</span>
   </div>
-  <h1 class="text-[10px] font-bold tracking-[0.15em] uppercase text-white/40 font-sans">Noir FM</h1>
+  <div class="w-10"></div>
   <div class="w-10"></div>
 </div>
 
@@ -1102,7 +1102,7 @@ input[type=range]::-webkit-slider-thumb {
     <!-- Track Info -->
     <div class="flex justify-between items-end mb-5">
       <div class="overflow-hidden flex-1 mr-4">
-        <h2 class="text-2xl font-serif font-semibold text-white tracking-wide mb-1 truncate" id="trackTitle">Noir FM</h2>
+        <h2 class="text-2xl font-serif font-semibold text-white tracking-wide mb-1 truncate" id="trackTitle">&mdash;</h2>
         <p class="text-sm font-medium tracking-wide uppercase truncate">
           <span class="text-ruby-base" id="trackArtist">&mdash;</span>
         </p>
@@ -1239,7 +1239,7 @@ async function updateNow() {
         isCurrent: true
       });
     } else {
-      trackTitle.textContent = 'Noir FM';
+      trackTitle.textContent = '\\u2014';
       trackArtist.textContent = '\\u2014';
       vinylCover.innerHTML = '<div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]">&#9835;</div>';
       if (isAudioPlaying) {
