@@ -1,4 +1,4 @@
-import { spawn, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
@@ -6,25 +6,6 @@ import { EventEmitter } from "node:events";
 const RADIO_DIR = "/tmp/radio";
 const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
-const WARP_PROXY = "socks5://127.0.0.1:9091";
-
-// WARP proxy: ALWAYS pass --proxy to yt-dlp unconditionally.
-// sing-box runs as a sidecar (started by entrypoint.sh before Node).
-// Even if Cloudflare trace says warp=off, traffic still exits via Cloudflare IP
-// which bypasses YouTube's datacenter IP blocks. We only log status for debugging.
-function checkWarp() {
-  try {
-    const out = execSync(`curl -sf --max-time 8 --socks5-hostname 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace`, { encoding: "utf-8", timeout: 15000 });
-    const warpLine = out.split("\n").find(l => l.startsWith("warp=")) || "warp=?";
-    console.log(`[radio] WARP proxy check: ${warpLine.trim()} (proxy is alive, will use it)`);
-  } catch (err) {
-    console.log(`[radio] WARP proxy check failed (will still use --proxy): ${err.message?.slice(0, 150) || "unknown"}`);
-  }
-}
-// Check on startup after a delay (for logging only — does NOT affect --proxy usage)
-setTimeout(checkWarp, 15000);
-// Re-check every 5 min for debugging
-setInterval(checkWarp, 300000);
 
 // Write YouTube cookies from env var (base64 encoded) to file on startup
 function initCookies() {
@@ -107,8 +88,6 @@ class Radio extends EventEmitter {
         "--default-search", "ytsearch1",
         "--socket-timeout", "30",
         "--retries", "5",
-        "--force-ipv4",            // avoid IPv6 issues through WARP tunnel
-        "--proxy", WARP_PROXY,     // always route through WARP
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
@@ -157,8 +136,6 @@ class Radio extends EventEmitter {
         "--no-playlist",
         "--socket-timeout", "30",
         "--retries", "5",
-        "--force-ipv4",
-        "--proxy", WARP_PROXY,
       ];
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {

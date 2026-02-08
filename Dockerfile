@@ -46,15 +46,6 @@ RUN apt-get update \
   && pip3 install --break-system-packages yt-dlp \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
-# 1b. Install sing-box for Cloudflare WARP proxy (bypasses YouTube IP blocks)
-RUN SING_BOX_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//') \
-  && echo "Installing sing-box v${SING_BOX_VERSION}..." \
-  && curl -Lo /tmp/sing-box.deb "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box_${SING_BOX_VERSION}_linux_amd64.deb" \
-  && (dpkg -i /tmp/sing-box.deb || true) \
-  && rm /tmp/sing-box.deb \
-  && mkdir -p /etc/sing-box \
-  && sing-box version
-
 # 2. Install OpenClaw globally (as root)
 RUN npm install -g openclaw@latest
 
