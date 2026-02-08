@@ -985,220 +985,441 @@ const RADIO_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crowbot Radio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Crowbot FM</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --red: #ec4141;
+    --red-dark: #c93b3b;
+    --bg: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-item: #1c2a4a;
+    --bg-item-hover: #243354;
+    --text: #f0f0f0;
+    --text-sub: #8a8a9a;
+    --text-dim: #5a5a6a;
+    --needle: #b8860b;
+  }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
+    min-height: 100dvh;
+    overflow-x: hidden;
   }
-  h1 {
-    font-size: 1.5em;
-    margin-bottom: 20px;
-    opacity: 0.9;
-  }
-  .player-card {
-    background: rgba(255,255,255,0.08);
-    backdrop-filter: blur(20px);
-    border-radius: 20px;
-    padding: 30px;
-    width: 100%;
-    max-width: 380px;
-    text-align: center;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-  }
-  .album-art {
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    margin: 0 auto 20px;
-    background: rgba(255,255,255,0.05);
+
+  /* Header */
+  .header {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    animation: spin 20s linear infinite;
-    animation-play-state: paused;
+    padding: 16px 20px;
+    position: relative;
   }
-  .album-art.playing { animation-play-state: running; }
-  .album-art img {
-    width: 100%;
-    height: 100%;
+  .header h1 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .header .listeners-badge {
+    position: absolute;
+    right: 20px;
+    font-size: 11px;
+    color: var(--text-sub);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Vinyl record */
+  .vinyl-container {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    margin: 10px auto 0;
+  }
+  .vinyl {
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center,
+      #111 0%, #111 15%,
+      #222 15.5%, #1a1a1a 20%,
+      #222 25%, #1d1d1d 30%,
+      #252525 35%, #1e1e1e 40%,
+      #222 45%, #1a1a1a 48%,
+      #111 48.5%, #111 100%
+    );
+    position: relative;
+    animation: spin 8s linear infinite;
+    animation-play-state: paused;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+  }
+  .vinyl.playing { animation-play-state: running; }
+  .vinyl-cover {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    overflow: hidden;
+    background: #333;
+    border: 3px solid #111;
+  }
+  .vinyl-cover img {
+    width: 100%; height: 100%;
     object-fit: cover;
   }
-  .album-art .placeholder {
-    font-size: 60px;
-    opacity: 0.3;
+  .vinyl-cover .placeholder-icon {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #555;
+    background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
+  }
+  .vinyl-hole {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--bg);
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    border: 2px solid #333;
+  }
+  /* Needle arm */
+  .needle {
+    position: absolute;
+    top: -10px; right: 30px;
+    width: 80px; height: 120px;
+    transform-origin: top right;
+    transform: rotate(-25deg);
+    transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 3;
+  }
+  .needle.active { transform: rotate(0deg); }
+  .needle-arm {
+    width: 3px; height: 100px;
+    background: linear-gradient(to bottom, var(--needle), #8B6914);
+    margin-left: auto;
+    margin-right: 10px;
+    border-radius: 2px;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+  }
+  .needle-head {
+    width: 10px; height: 16px;
+    background: #666;
+    margin-left: auto;
+    margin-right: 7px;
+    border-radius: 0 0 3px 3px;
+  }
+  .needle-pivot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ddd, #999);
+    position: absolute;
+    top: -5px; right: 2px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  .track-info {
-    margin-bottom: 15px;
+
+  /* Track info */
+  .track-section {
+    text-align: center;
+    padding: 20px 24px 10px;
   }
   .track-title {
-    font-size: 1.2em;
+    font-size: 18px;
     font-weight: 600;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 340px;
+    margin-left: auto;
+    margin-right: auto;
   }
   .track-artist {
-    font-size: 0.9em;
-    opacity: 0.6;
+    font-size: 13px;
+    color: var(--text-sub);
   }
+
+  /* Controls */
   .controls {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-    margin-bottom: 20px;
+    gap: 32px;
+    padding: 16px 0;
   }
-  .btn {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+  .ctrl-btn {
     border: none;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    font-size: 20px;
+    background: none;
+    color: var(--text);
     cursor: pointer;
+    padding: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ctrl-btn svg { display: block; }
+  .ctrl-btn.play-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--red);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.1s;
   }
-  .btn:hover { background: rgba(255,255,255,0.25); }
-  .btn.play-btn {
-    width: 65px;
-    height: 65px;
-    font-size: 26px;
-    background: rgba(255,255,255,0.2);
-  }
-  .volume-section {
+  .ctrl-btn.play-btn:active { transform: scale(0.93); background: var(--red-dark); }
+
+  /* Volume */
+  .volume-bar {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 15px;
-    padding: 0 10px;
+    padding: 0 36px 12px;
   }
-  .volume-section span { font-size: 16px; opacity: 0.6; }
+  .vol-icon { color: var(--text-dim); font-size: 14px; }
   .volume-slider {
     flex: 1;
     -webkit-appearance: none;
-    height: 4px;
+    appearance: none;
+    height: 3px;
     border-radius: 2px;
-    background: rgba(255,255,255,0.2);
+    background: #333;
     outline: none;
   }
   .volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 14px; height: 14px;
     border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
+    background: var(--red);
+    border: 2px solid #fff;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
   }
-  .volume-val { font-size: 12px; opacity: 0.5; min-width: 30px; }
-  .listeners {
-    font-size: 0.8em;
-    opacity: 0.4;
-    margin-bottom: 15px;
+
+  /* Playlist */
+  .playlist {
+    background: var(--bg-card);
+    border-radius: 20px 20px 0 0;
+    min-height: 200px;
+    padding: 20px 0 40px;
+    margin-top: 8px;
   }
-  .queue-section {
-    margin-top: 20px;
-    width: 100%;
-    max-width: 380px;
-  }
-  .queue-section h3 {
-    font-size: 0.9em;
-    opacity: 0.6;
-    margin-bottom: 10px;
-  }
-  .queue-item {
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    padding: 10px 15px;
-    margin-bottom: 6px;
+  .playlist-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    padding: 0 20px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 4px;
   }
-  .queue-item .q-title { font-size: 0.85em; }
-  .queue-item .q-artist { font-size: 0.75em; opacity: 0.5; }
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 6px;
+  .playlist-header h2 {
+    font-size: 15px;
+    font-weight: 600;
   }
-  .status-dot.on { background: #4caf50; }
-  .status-dot.off { background: #666; }
-  .not-playing {
-    opacity: 0.5;
-    padding: 40px 0;
+  .playlist-count {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .playlist-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    gap: 12px;
+    transition: background 0.15s;
+  }
+  .playlist-item:active { background: var(--bg-item-hover); }
+  .playlist-item.now-playing { background: var(--bg-item); }
+  .pl-index {
+    width: 24px;
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .pl-index.active { color: var(--red); }
+  .pl-thumb {
+    width: 42px; height: 42px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #2a2a3a;
+  }
+  .pl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .pl-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .pl-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pl-title.active { color: var(--red); }
+  .pl-artist {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pl-duration {
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .pl-eq {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 16px;
+  }
+  .pl-eq span {
+    width: 3px;
+    background: var(--red);
+    border-radius: 1px;
+    animation: eqBar 0.8s ease-in-out infinite alternate;
+  }
+  .pl-eq span:nth-child(1) { height: 8px; animation-delay: 0s; }
+  .pl-eq span:nth-child(2) { height: 14px; animation-delay: 0.2s; }
+  .pl-eq span:nth-child(3) { height: 6px; animation-delay: 0.4s; }
+  @keyframes eqBar {
+    0% { height: 4px; }
+    100% { height: 16px; }
+  }
+
+  .empty-playlist {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  .idle-state {
+    text-align: center;
+    padding: 8px 0;
+    color: var(--text-dim);
+    font-size: 12px;
   }
 </style>
 </head>
 <body>
-<h1>Crowbot Radio</h1>
-<div class="player-card">
-  <div class="album-art" id="albumArt">
-    <span class="placeholder">&#127925;</span>
+
+<div class="header">
+  <h1>Crowbot FM</h1>
+  <div class="listeners-badge" id="listenersBadge">
+    <span class="live-dot"></span>
+    <span id="listenersText">0</span>
   </div>
-  <div class="track-info">
-    <div class="track-title" id="trackTitle">Loading...</div>
-    <div class="track-artist" id="trackArtist"></div>
-  </div>
-  <div class="controls">
-    <button class="btn" id="skipBtn" title="Skip">&#9197;</button>
-    <button class="btn play-btn" id="playBtn" title="Play/Pause">&#9654;</button>
-  </div>
-  <div class="volume-section">
-    <span>&#128264;</span>
-    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
-    <span class="volume-val" id="volumeVal">80</span>
-  </div>
-  <div class="listeners" id="listeners"></div>
 </div>
-<div class="queue-section" id="queueSection"></div>
+
+<div class="vinyl-container">
+  <div class="needle" id="needle">
+    <div class="needle-pivot"></div>
+    <div class="needle-arm"></div>
+    <div class="needle-head"></div>
+  </div>
+  <div class="vinyl" id="vinyl">
+    <div class="vinyl-cover" id="vinylCover">
+      <div class="placeholder-icon">&#9835;</div>
+    </div>
+    <div class="vinyl-hole"></div>
+  </div>
+</div>
+
+<div class="track-section">
+  <div class="track-title" id="trackTitle">Crowbot FM</div>
+  <div class="track-artist" id="trackArtist">&#8212;</div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="skipBtn" title="Next">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+  </button>
+  <button class="ctrl-btn play-btn" id="playBtn" title="Play">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" id="playIcon"><polygon points="9,6 9,18 18,12"/></svg>
+  </button>
+  <button class="ctrl-btn" style="visibility:hidden">
+    <svg width="28" height="28" viewBox="0 0 24 24"></svg>
+  </button>
+</div>
+
+<div class="volume-bar">
+  <span class="vol-icon">&#128264;</span>
+  <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+</div>
+
+<div class="playlist" id="playlist">
+  <div class="playlist-header">
+    <h2>&#127926; Playlist</h2>
+    <span class="playlist-count" id="playlistCount">0 songs</span>
+  </div>
+  <div id="playlistItems">
+    <div class="empty-playlist">Tell Crowbot what to play</div>
+  </div>
+</div>
 
 <audio id="audio" preload="none"></audio>
 
 <script>
 const audio = document.getElementById('audio');
 const playBtn = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
 const skipBtn = document.getElementById('skipBtn');
 const volumeSlider = document.getElementById('volumeSlider');
-const volumeVal = document.getElementById('volumeVal');
 const trackTitle = document.getElementById('trackTitle');
 const trackArtist = document.getElementById('trackArtist');
-const albumArt = document.getElementById('albumArt');
-const listeners = document.getElementById('listeners');
-const queueSection = document.getElementById('queueSection');
+const vinyl = document.getElementById('vinyl');
+const vinylCover = document.getElementById('vinylCover');
+const needle = document.getElementById('needle');
+const listenersText = document.getElementById('listenersText');
+const playlistCount = document.getElementById('playlistCount');
+const playlistItems = document.getElementById('playlistItems');
 
 let isAudioPlaying = false;
+
+function formatDuration(s) {
+  if (!s) return '';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
 
 playBtn.addEventListener('click', () => {
   if (isAudioPlaying) {
     audio.pause();
     audio.src = '';
     isAudioPlaying = false;
-    playBtn.innerHTML = '&#9654;';
-    albumArt.classList.remove('playing');
+    playIcon.innerHTML = '<polygon points="9,6 9,18 18,12"/>';
+    vinyl.classList.remove('playing');
+    needle.classList.remove('active');
   } else {
     audio.src = '/radio/stream?' + Date.now();
     audio.play().catch(e => console.log('play error:', e));
     isAudioPlaying = true;
-    playBtn.innerHTML = '&#9646;&#9646;';
-    albumArt.classList.add('playing');
+    playIcon.innerHTML = '<rect x="7" y="6" width="3.5" height="12" rx="1"/><rect x="13.5" y="6" width="3.5" height="12" rx="1"/>';
+    vinyl.classList.add('playing');
+    needle.classList.add('active');
   }
 });
 
@@ -1207,11 +1428,10 @@ skipBtn.addEventListener('click', async () => {
   updateNow();
 });
 
-let volumeTimer = null;
+let volTimer = null;
 volumeSlider.addEventListener('input', (e) => {
-  volumeVal.textContent = e.target.value;
-  clearTimeout(volumeTimer);
-  volumeTimer = setTimeout(async () => {
+  clearTimeout(volTimer);
+  volTimer = setTimeout(async () => {
     await fetch('/radio/volume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1222,51 +1442,88 @@ volumeSlider.addEventListener('input', (e) => {
 
 async function updateNow() {
   try {
-    const res = await fetch('/radio/now');
-    const data = await res.json();
+    const [nowRes, qRes] = await Promise.all([
+      fetch('/radio/now'),
+      fetch('/radio/queue')
+    ]);
+    const data = await nowRes.json();
+    const qData = await qRes.json();
 
+    listenersText.textContent = data.listeners || 0;
+    volumeSlider.value = data.volume;
+
+    // Build full playlist: current + queue
+    let items = [];
     if (data.isPlaying && data.currentTrack) {
       trackTitle.textContent = data.currentTrack.title;
       trackArtist.textContent = data.currentTrack.artist;
-      volumeSlider.value = data.volume;
-      volumeVal.textContent = data.volume;
-      listeners.innerHTML = '<span class="status-dot on"></span> ' +
-        data.listeners + ' listener' + (data.listeners !== 1 ? 's' : '') +
-        ' &middot; ' + data.queueLength + ' in queue';
 
       if (data.currentTrack.thumbnail) {
-        albumArt.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="">';
+        vinylCover.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="">';
       } else {
-        albumArt.innerHTML = '<span class="placeholder">&#127925;</span>';
+        vinylCover.innerHTML = '<div class="placeholder-icon">&#9835;</div>';
       }
+
+      items.push({
+        title: data.currentTrack.title,
+        artist: data.currentTrack.artist,
+        duration: data.currentTrack.duration,
+        thumbnail: data.currentTrack.thumbnail,
+        isCurrent: true
+      });
     } else {
-      trackTitle.textContent = 'No music playing';
-      trackArtist.textContent = 'Tell Crowbot what to play';
-      listeners.innerHTML = '<span class="status-dot off"></span> Idle';
-      albumArt.innerHTML = '<span class="placeholder">&#127925;</span>';
-      albumArt.classList.remove('playing');
+      trackTitle.textContent = 'Crowbot FM';
+      trackArtist.textContent = '\\u2014';
+      vinylCover.innerHTML = '<div class="placeholder-icon">&#9835;</div>';
+      if (isAudioPlaying) {
+        vinyl.classList.remove('playing');
+        needle.classList.remove('active');
+      }
     }
 
-    // Update queue
-    const qRes = await fetch('/radio/queue');
-    const qData = await qRes.json();
-    if (qData.queue && qData.queue.length > 0) {
-      queueSection.innerHTML = '<h3>Up Next (' + qData.total + ')</h3>' +
-        qData.queue.map(t =>
-          '<div class="queue-item">' +
-          '<div><div class="q-title">' + t.title + '</div>' +
-          '<div class="q-artist">' + t.artist + '</div></div>' +
-          '</div>'
-        ).join('');
+    if (qData.queue) {
+      qData.queue.forEach(t => {
+        items.push({
+          title: t.title,
+          artist: t.artist,
+          duration: t.duration,
+          thumbnail: null,
+          isCurrent: false
+        });
+      });
+    }
+
+    playlistCount.textContent = items.length + (items.length === 1 ? ' song' : ' songs');
+
+    if (items.length > 0) {
+      playlistItems.innerHTML = items.map((t, i) => {
+        const cls = t.isCurrent ? ' now-playing' : '';
+        const idxCls = t.isCurrent ? ' active' : '';
+        const titleCls = t.isCurrent ? ' active' : '';
+        const idx = t.isCurrent
+          ? '<div class="pl-eq"><span></span><span></span><span></span></div>'
+          : '<span>' + (i + 1) + '</span>';
+        const thumb = t.thumbnail
+          ? '<img src="' + t.thumbnail + '" alt="">'
+          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;font-size:16px">&#9835;</div>';
+        return '<div class="playlist-item' + cls + '">'
+          + '<div class="pl-index' + idxCls + '">' + idx + '</div>'
+          + '<div class="pl-thumb">' + thumb + '</div>'
+          + '<div class="pl-info">'
+          + '<div class="pl-title' + titleCls + '">' + t.title + '</div>'
+          + '<div class="pl-artist">' + t.artist + '</div>'
+          + '</div>'
+          + '<div class="pl-duration">' + formatDuration(t.duration) + '</div>'
+          + '</div>';
+      }).join('');
     } else {
-      queueSection.innerHTML = '';
+      playlistItems.innerHTML = '<div class="empty-playlist">Tell Crowbot what to play</div>';
     }
   } catch (e) {
     console.log('update error:', e);
   }
 }
 
-// Poll every 3 seconds
 updateNow();
 setInterval(updateNow, 3000);
 </script>

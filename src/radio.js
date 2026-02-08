@@ -92,8 +92,10 @@ class Radio extends EventEmitter {
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
       }
-      args.push(query);
+      // "--" separates options from positional args so query is never parsed as an option
+      args.push("--", query);
 
+      console.log(`[radio] yt-dlp info argv:`, JSON.stringify(args));
       const proc = spawn("yt-dlp", args, { timeout: 60000 });
       let stdout = "";
       let stderr = "";
@@ -137,9 +139,9 @@ class Radio extends EventEmitter {
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
       }
-      args.push("-o", outputPath, url);
+      args.push("-o", outputPath, "--", url);
 
-      console.log(`[radio] downloading: ${url}`);
+      console.log(`[radio] download argv:`, JSON.stringify(args));
       const proc = spawn("yt-dlp", args, { timeout: 120000 });
       let stderr = "";
 
