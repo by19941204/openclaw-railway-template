@@ -982,33 +982,40 @@ app.post("/radio/webhook", (req, res) => {
 
 // Radio web player HTML
 const RADIO_HTML = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Radio</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<title>NOIR FM</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 <script>
 tailwind.config = {
   darkMode: "class",
   theme: {
     extend: {
       colors: {
-        midnight: { 900: "#02040a", 800: "#080b14", 700: "#0f121e" },
-        ruby: { glow: "#ff3333", base: "#dd001b", dark: "#8a0011" },
+        primary: "#D32F2F",
+        "accent-red": "#FF3B30",
+        "background-dark": "#1A1A1C",
+        "surface-dark": "#232325",
+        "surface-card": "#252527",
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"],
-        serif: ["Playfair Display", "serif"],
+        display: ["Playfair Display", "serif"],
       },
       boxShadow: {
-        'vinyl-deep': '0 20px 50px -10px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05)',
-        'glass': '0 -4px 30px rgba(0,0,0,0.5)',
-        'titanium': '2px 4px 8px rgba(0,0,0,0.5), inset 1px 1px 2px rgba(255,255,255,0.3)',
+        vinyl: "0 25px 60px -15px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03)",
+        glow: "0 0 20px rgba(211,47,47,0.3), 0 0 60px rgba(211,47,47,0.1)",
+      },
+      borderRadius: {
+        DEFAULT: "12px",
+        xl: "20px",
+        "2xl": "32px",
       },
     },
   },
@@ -1016,133 +1023,103 @@ tailwind.config = {
 </script>
 <style>
 body { font-family: "Inter", sans-serif; min-height: 100dvh; }
-.noise-bg {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 1; opacity: 0.03;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-}
-.vinyl-grooves {
+.vinyl-texture {
   background: repeating-radial-gradient(#111 0, #111 2px, #1c1c1c 3px, #1c1c1c 4px);
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
 }
-.vinyl-reflection {
-  background: conic-gradient(from 45deg, transparent 0%, rgba(255,255,255,0.08) 15%, transparent 30%, transparent 50%, rgba(255,255,255,0.08) 65%, transparent 80%, transparent 100%);
-  filter: blur(1px);
-}
-.tonearm-pivot {
-  transform-origin: 50% 10%;
+.tonearm {
+  transform-origin: top right;
   transform: rotate(-20deg);
   transition: transform 0.5s ease-in-out;
 }
-.tonearm-pivot.active { transform: rotate(12deg); }
+.tonearm.active { transform: rotate(12deg); }
 .vinyl-spin { animation: spin 8s linear infinite; animation-play-state: paused; }
 .vinyl-spin.playing { animation-play-state: running; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes eq1 { 0% { height: 4px; } 100% { height: 14px; } }
-@keyframes eq2 { 0% { height: 6px; } 100% { height: 16px; } }
-@keyframes eq3 { 0% { height: 3px; } 100% { height: 12px; } }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-.titanium-texture {
-  background-image: linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0.05) 50%, rgba(0,0,0,0.05) 100%);
-  background-size: 4px 4px;
-}
-/* Volume slider - large touch targets for mobile */
-input[type=range] {
-  -webkit-appearance: none; appearance: none; background: transparent;
-  height: 44px; /* iOS minimum touch target */
-  cursor: pointer;
-  touch-action: none; /* prevent scroll interference */
-}
-input[type=range]::-webkit-slider-runnable-track {
-  height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px;
-}
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
-  background: white; margin-top: -9px;
-  box-shadow: 0 0 6px rgba(0,0,0,0.4), 0 0 12px rgba(255,255,255,0.1);
-}
 </style>
 </head>
-<body class="bg-gradient-to-b from-[#2a1f2d] to-[#121212] text-white h-screen flex flex-col relative overflow-hidden">
+<body class="bg-background-dark text-white h-screen flex flex-col relative overflow-hidden">
 
-<div class="noise-bg"></div>
+<!-- Background gradients + red glow -->
+<div class="absolute inset-0 bg-gradient-to-b from-[#2a2c30] via-[#1A1A1C] to-[#0d0d0f]"></div>
+<div class="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/10 blur-[120px] pointer-events-none"></div>
 
 <!-- Header -->
 <div class="w-full flex justify-between items-center px-6 pt-14 pb-2 z-20 relative">
   <div class="flex items-center space-x-1.5 opacity-50">
-    <span class="block w-1.5 h-1.5 rounded-full bg-ruby-base" style="animation: pulse-dot 2s ease-in-out infinite"></span>
+    <span class="block w-1.5 h-1.5 rounded-full bg-accent-red" style="animation: pulse-dot 2s ease-in-out infinite"></span>
     <span class="text-[10px] font-mono" id="listenersText">0</span>
   </div>
-  <div class="w-10"></div>
+  <span class="text-xs tracking-[0.25em] font-semibold text-gray-300 uppercase opacity-80">NOIR FM</span>
   <div class="w-10"></div>
 </div>
 
 <!-- Vinyl -->
 <div class="flex-none w-full flex items-center justify-center z-10 relative" style="padding-top:8px">
-  <div class="relative w-[280px] h-[260px] flex items-center justify-center">
+  <div class="relative w-80 h-72 flex items-center justify-center">
     <!-- Tonearm -->
-    <div class="tonearm-pivot absolute -top-8 right-6 w-10 h-48 z-30 pointer-events-none drop-shadow-2xl" id="needle">
-      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-40 rounded-full shadow-titanium titanium-texture" style="background:linear-gradient(90deg,#888,#ddd 20%,#bbb 40%,#999 60%,#eee 80%,#777)"></div>
-      <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 shadow-lg border border-gray-400 flex items-center justify-center">
-        <div class="w-4 h-4 rounded-full bg-gray-600 shadow-inner"></div>
-      </div>
-      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-5 h-8 bg-gradient-to-b from-gray-300 to-gray-400 rounded-sm shadow-lg flex items-end justify-center pb-1">
-        <div class="w-1 h-2 bg-black/50"></div>
+    <div class="tonearm absolute -top-4 right-2 z-30 pointer-events-none" id="needle">
+      <div class="relative w-14 h-14">
+        <div class="absolute top-0 right-0 w-14 h-14 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 shadow-lg border border-gray-400 flex items-center justify-center z-10">
+          <div class="w-5 h-5 rounded-full bg-gray-600 shadow-inner"></div>
+        </div>
+        <div class="absolute top-[50%] right-[26px] w-[2.5px] h-36 bg-gradient-to-b from-gray-400 via-gray-300 to-gray-400 rounded-full origin-top rotate-[15deg] shadow-md">
+          <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-4 bg-gradient-to-b from-gray-300 to-gray-500 rounded-sm shadow-md">
+            <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[2px] h-2 bg-black/60"></div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- Record -->
-    <div class="vinyl-spin w-[260px] h-[260px] rounded-full bg-[#0a0a0a] shadow-vinyl-deep relative flex items-center justify-center overflow-hidden border border-white/5" id="vinyl">
-      <div class="absolute inset-1 rounded-full vinyl-grooves opacity-90"></div>
-      <div class="absolute inset-0 rounded-full vinyl-reflection opacity-40 mix-blend-soft-light pointer-events-none"></div>
-      <div class="relative z-10 w-24 h-24 rounded-full bg-gradient-to-br from-red-900 to-black flex items-center justify-center shadow-inner border border-white/10 overflow-hidden" id="vinylCover">
-        <div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]" id="coverPlaceholder">&#9835;</div>
+    <div class="vinyl-spin w-72 h-72 rounded-full bg-[#0a0a0a] shadow-vinyl relative flex items-center justify-center overflow-hidden border-[6px] border-[#222]" id="vinyl">
+      <div class="absolute inset-1 rounded-full vinyl-texture opacity-90"></div>
+      <div class="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-40 pointer-events-none"></div>
+      <div class="relative z-10 w-28 h-28 rounded-full bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a] flex items-center justify-center shadow-inner border-4 border-[#181818] overflow-hidden" id="vinylCover">
+        <div class="w-full h-full flex items-center justify-center text-3xl text-white/20" id="coverPlaceholder">&#9835;</div>
       </div>
-      <div class="absolute top-1/2 left-1/2 w-1.5 h-1.5 bg-black rounded-full shadow-[0_0_2px_rgba(255,255,255,0.5)] -translate-x-1/2 -translate-y-1/2 z-20"></div>
     </div>
   </div>
 </div>
 
-<!-- Bottom Panel -->
-<div class="w-full bg-black/40 backdrop-blur-2xl border-t border-white/5 rounded-t-[40px] shadow-glass z-20 flex flex-col relative flex-1 mt-[-10px]">
-  <div class="px-8 pt-7 pb-2 flex flex-col w-full">
-    <!-- Track Info -->
-    <div class="flex justify-between items-end mb-5">
-      <div class="overflow-hidden flex-1 mr-4">
-        <h2 class="text-2xl font-serif font-semibold text-white tracking-wide mb-1 truncate" id="trackTitle">&mdash;</h2>
-        <p class="text-sm font-medium tracking-wide uppercase truncate">
-          <span class="text-ruby-base" id="trackArtist">&mdash;</span>
-        </p>
-      </div>
-    </div>
+<!-- Track Info (centered, below vinyl) -->
+<div class="w-full text-center px-8 pt-5 pb-2 z-20 relative">
+  <h2 class="font-display text-3xl font-semibold text-white tracking-wide mb-1 truncate" id="trackTitle">&mdash;</h2>
+  <p class="text-gray-400 uppercase tracking-widest text-xs truncate" id="trackArtist">&mdash;</p>
+</div>
 
-    <!-- Controls -->
-    <div class="flex items-center justify-center px-2 mb-4">
-      <div class="flex items-center space-x-10">
-        <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
-          <span class="material-symbols-outlined text-4xl">skip_next</span>
-        </button>
-        <button class="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)]" id="playBtn">
-          <span class="material-symbols-outlined text-3xl" style="font-variation-settings:'FILL' 1" id="playIcon">play_arrow</span>
-        </button>
-        <button class="text-white/40 p-2 opacity-0 pointer-events-none">
-          <span class="material-symbols-outlined text-3xl">skip_next</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Volume -->
-    <div class="flex items-center gap-3 px-2 mb-2">
-      <span class="material-symbols-outlined text-white/30 text-lg">volume_down</span>
-      <input type="range" class="flex-1 cursor-pointer" id="volumeSlider" min="0" max="100" value="80">
-      <span class="material-symbols-outlined text-white/30 text-lg">volume_up</span>
-    </div>
+<!-- Progress Bar -->
+<div class="w-full px-8 pt-2 pb-1 z-20 relative">
+  <div class="h-1 bg-gray-700/50 rounded-full overflow-hidden">
+    <div class="h-full bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.4)] transition-all duration-1000 ease-linear" id="progressBar" style="width:0%"></div>
   </div>
+  <div class="flex justify-between mt-1.5">
+    <span class="font-mono text-[10px] text-gray-500" id="progressCurrent">0:00</span>
+    <span class="font-mono text-[10px] text-gray-500" id="progressTotal">0:00</span>
+  </div>
+</div>
 
-  <!-- Playlist -->
-  <div class="flex-1 w-full px-6 overflow-y-auto no-scrollbar pb-8 mt-1">
-    <div class="sticky top-0 pt-2 pb-3 z-10 flex justify-between items-center backdrop-blur-sm">
+<!-- Controls -->
+<div class="flex items-center justify-center px-2 pt-2 pb-3 z-20 relative">
+  <div class="flex items-center space-x-10">
+    <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
+      <span class="material-icons-round text-4xl">skip_next</span>
+    </button>
+    <button class="p-4 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all" id="playBtn">
+      <span class="material-icons-round text-3xl text-white" id="playIcon">play_arrow</span>
+    </button>
+    <button class="text-white/40 p-4 opacity-0 pointer-events-none -m-2">
+      <span class="material-icons-round text-4xl">skip_next</span>
+    </button>
+  </div>
+</div>
+
+<!-- Playlist Panel -->
+<div class="w-full rounded-t-2xl bg-[#151517] shadow-[0_-15px_40px_rgba(0,0,0,0.6)] z-20 flex flex-col relative flex-1">
+  <div class="w-10 h-1 bg-gray-600 rounded-full mx-auto mt-3 mb-1"></div>
+  <div class="flex-1 w-full px-6 overflow-y-auto no-scrollbar pb-8">
+    <div class="sticky top-0 pt-2 pb-3 z-10 flex justify-between items-center bg-[#151517]">
       <span class="text-xs font-bold text-white/30 uppercase tracking-widest">Playing Next</span>
       <span class="text-[10px] font-mono text-white/20 bg-white/5 px-2 py-1 rounded" id="playlistCount">0 songs</span>
     </div>
@@ -1162,7 +1139,6 @@ const audio = document.getElementById('audio');
 const playBtn = document.getElementById('playBtn');
 const playIcon = document.getElementById('playIcon');
 const skipBtn = document.getElementById('skipBtn');
-const volumeSlider = document.getElementById('volumeSlider');
 const trackTitle = document.getElementById('trackTitle');
 const trackArtist = document.getElementById('trackArtist');
 const vinyl = document.getElementById('vinyl');
@@ -1171,15 +1147,36 @@ const needle = document.getElementById('needle');
 const listenersText = document.getElementById('listenersText');
 const playlistCount = document.getElementById('playlistCount');
 const playlistItems = document.getElementById('playlistItems');
+const progressBar = document.getElementById('progressBar');
+const progressCurrent = document.getElementById('progressCurrent');
+const progressTotal = document.getElementById('progressTotal');
 
 let isAudioPlaying = false;
+let currentStartedAt = null;
+let currentDuration = 0;
 
 function formatDuration(s) {
-  if (!s) return '';
+  if (!s) return '0:00';
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return m + ':' + (sec < 10 ? '0' : '') + sec;
 }
+
+// Progress bar update
+function updateProgress() {
+  if (currentStartedAt && currentDuration > 0) {
+    const elapsed = (Date.now() - currentStartedAt) / 1000;
+    const pct = Math.min(100, (elapsed / currentDuration) * 100);
+    progressBar.style.width = pct + '%';
+    progressCurrent.textContent = formatDuration(Math.min(elapsed, currentDuration));
+    progressTotal.textContent = formatDuration(currentDuration);
+  } else {
+    progressBar.style.width = '0%';
+    progressCurrent.textContent = '0:00';
+    progressTotal.textContent = '0:00';
+  }
+}
+setInterval(updateProgress, 1000);
 
 playBtn.addEventListener('click', () => {
   if (isAudioPlaying) {
@@ -1204,18 +1201,6 @@ skipBtn.addEventListener('click', async () => {
   updateNow();
 });
 
-let volTimer = null;
-volumeSlider.addEventListener('input', (e) => {
-  clearTimeout(volTimer);
-  volTimer = setTimeout(async () => {
-    await fetch('/radio/volume', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ volume: Number(e.target.value) }),
-    });
-  }, 300);
-});
-
 async function updateNow() {
   try {
     const [nowRes, qRes] = await Promise.all([
@@ -1226,12 +1211,13 @@ async function updateNow() {
     const qData = await qRes.json();
 
     listenersText.textContent = data.listeners || 0;
-    volumeSlider.value = data.volume;
 
     let items = [];
     if (data.isPlaying && data.currentTrack) {
       trackTitle.textContent = data.currentTrack.title;
       trackArtist.textContent = data.currentTrack.artist;
+      currentStartedAt = data.currentTrack.startedAt || null;
+      currentDuration = data.currentTrack.duration || 0;
 
       if (data.currentTrack.thumbnail) {
         vinylCover.innerHTML = '<img src="' + data.currentTrack.thumbnail + '" alt="" class="w-full h-full object-cover">';
@@ -1249,6 +1235,8 @@ async function updateNow() {
     } else {
       trackTitle.textContent = '\\u2014';
       trackArtist.textContent = '\\u2014';
+      currentStartedAt = null;
+      currentDuration = 0;
       vinylCover.innerHTML = '<div class="w-full h-full flex items-center justify-center text-3xl text-white/20 bg-gradient-to-br from-[#2a2a2a] to-[#3a3a3a]">&#9835;</div>';
       if (isAudioPlaying) {
         vinyl.classList.remove('playing');
@@ -1273,32 +1261,34 @@ async function updateNow() {
     if (items.length > 0) {
       playlistItems.innerHTML = items.map((t, i) => {
         if (t.isCurrent) {
-          return '<div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">'
+          return '<div class="p-4 rounded-2xl bg-surface-card border border-white/5 shadow-lg">'
+            + '<div class="flex items-center justify-between">'
             + '<div class="flex items-center space-x-3 overflow-hidden">'
             + '<div class="w-4 h-4 flex items-center justify-center">'
-            + '<span class="block w-1.5 h-1.5 bg-ruby-base rounded-full" style="animation:pulse-dot 2s ease-in-out infinite"></span>'
+            + '<span class="block w-1.5 h-1.5 bg-accent-red rounded-full" style="animation:pulse-dot 2s ease-in-out infinite"></span>'
             + '</div>'
             + '<div class="flex flex-col overflow-hidden">'
             + '<p class="text-sm text-white font-medium truncate">' + t.title + '</p>'
             + '<p class="text-[10px] text-white/40 truncate">' + t.artist + '</p>'
             + '</div></div>'
-            + '<span class="text-xs font-mono text-ruby-base font-medium">' + formatDuration(t.duration) + '</span>'
-            + '</div>';
+            + '<span class="text-xs font-mono text-accent-red font-medium">' + formatDuration(t.duration) + '</span>'
+            + '</div></div>';
         } else {
-          return '<div class="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">'
+          return '<div class="flex items-center justify-between px-4 py-3 opacity-50 hover:opacity-80 transition-opacity cursor-pointer">'
             + '<div class="flex items-center space-x-3 overflow-hidden">'
-            + '<span class="text-xs font-mono text-white/20 w-4 text-center">' + String(i + 1).padStart(2, '0') + '</span>'
+            + '<span class="text-xs font-mono text-white/30 w-4 text-center">' + String(i + 1).padStart(2, '0') + '</span>'
             + '<div class="flex flex-col overflow-hidden">'
-            + '<p class="text-sm text-white/70 font-medium truncate group-hover:text-white transition-colors">' + t.title + '</p>'
+            + '<p class="text-sm text-white/70 font-medium truncate">' + t.title + '</p>'
             + '<p class="text-[10px] text-white/30 truncate">' + t.artist + '</p>'
             + '</div></div>'
-            + '<span class="text-xs font-mono text-white/30 group-hover:text-white/60">' + formatDuration(t.duration) + '</span>'
+            + '<span class="text-xs font-mono text-white/30">' + formatDuration(t.duration) + '</span>'
             + '</div>';
         }
       }).join('');
     } else {
       playlistItems.innerHTML = '<div class="text-center py-10 text-white/20 text-sm">Tell Crowbot what to play</div>';
     }
+    updateProgress();
   } catch (e) {
     console.log('update error:', e);
   }
@@ -1316,7 +1306,6 @@ function autoPlay() {
     vinyl.classList.add('playing');
     needle.classList.add('active');
   }).catch(() => {
-    // Browser blocked autoplay, wait for user interaction
     isAudioPlaying = false;
     playIcon.textContent = 'play_arrow';
     document.addEventListener('click', function once() {
@@ -1335,26 +1324,20 @@ function autoPlay() {
 }
 autoPlay();
 
-// Auto-reconnect when stream drops (e.g. after deploy restart)
+// Auto-reconnect on stream error/stall
 audio.addEventListener('error', () => {
   if (isAudioPlaying) {
-    console.log('stream error, reconnecting in 2s...');
     setTimeout(() => {
-      if (isAudioPlaying) {
-        audio.src = '/radio/stream?' + Date.now();
-        audio.play().catch(() => {});
-      }
+      audio.src = '/radio/stream?' + Date.now();
+      audio.play().catch(() => {});
     }, 2000);
   }
 });
 audio.addEventListener('stalled', () => {
   if (isAudioPlaying) {
-    console.log('stream stalled, reconnecting in 3s...');
     setTimeout(() => {
-      if (isAudioPlaying) {
-        audio.src = '/radio/stream?' + Date.now();
-        audio.play().catch(() => {});
-      }
+      audio.src = '/radio/stream?' + Date.now();
+      audio.play().catch(() => {});
     }, 3000);
   }
 });

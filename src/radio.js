@@ -217,6 +217,7 @@ class Radio extends EventEmitter {
     }
 
     const track = this.queue.shift();
+    track.startedAt = Date.now();
     this.currentTrack = track;
     this.isPlaying = true;
 
@@ -339,6 +340,7 @@ class Radio extends EventEmitter {
             artist: this.currentTrack.artist,
             duration: this.currentTrack.duration,
             thumbnail: this.currentTrack.thumbnail,
+            startedAt: this.currentTrack.startedAt || null,
           }
         : null,
       volume: this.volume,
