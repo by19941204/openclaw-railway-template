@@ -6,6 +6,24 @@ import { EventEmitter } from "node:events";
 const RADIO_DIR = "/tmp/radio";
 const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
+const WARP_PROXY = "socks5://127.0.0.1:9091";
+
+// Check if WARP proxy is available (set once at startup, re-checked periodically)
+let warpAvailable = false;
+function checkWarp() {
+  const { execSync } = require("node:child_process");
+  try {
+    const out = execSync(`curl -sf --max-time 3 --socks5 127.0.0.1:9091 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null`, { encoding: "utf-8" });
+    warpAvailable = out.includes("warp=on");
+  } catch {
+    warpAvailable = false;
+  }
+  console.log(`[radio] WARP proxy: ${warpAvailable ? "available" : "not available"}`);
+}
+// Check on startup after a short delay (give WARP time to connect)
+setTimeout(checkWarp, 5000);
+// Re-check every 60s in case WARP recovers or drops
+setInterval(checkWarp, 60000);
 
 // Write YouTube cookies from env var (base64 encoded) to file on startup
 function initCookies() {
@@ -87,8 +105,8 @@ class Radio extends EventEmitter {
         "--no-playlist",
         "--default-search", "ytsearch1",
         "--remote-components", "ejs:github",
-        "--proxy", "socks5://127.0.0.1:9091",
       ];
+      if (warpAvailable) args.push("--proxy", WARP_PROXY);
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
@@ -135,8 +153,8 @@ class Radio extends EventEmitter {
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
         "--remote-components", "ejs:github",
-        "--proxy", "socks5://127.0.0.1:9091",
       ];
+      if (warpAvailable) args.push("--proxy", WARP_PROXY);
       // Add cookies if available
       if (fs.existsSync(COOKIES_PATH)) {
         args.push("--cookies", COOKIES_PATH);
