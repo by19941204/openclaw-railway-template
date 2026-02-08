@@ -44,7 +44,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && pip3 install --break-system-packages yt-dlp \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
-  && bash -c "$(curl -fsSL https://sing-box.app/deb-install.sh)" \
+  && SING_BOX_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//') \
+  && curl -Lo /tmp/sing-box.deb "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box_${SING_BOX_VERSION}_linux_amd64.deb" \
+  && dpkg -i /tmp/sing-box.deb \
+  && rm /tmp/sing-box.deb \
   && mkdir -p /etc/sing-box
 
 # 2. Install OpenClaw globally (as root)
