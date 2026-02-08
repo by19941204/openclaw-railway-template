@@ -4,7 +4,24 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 
 const RADIO_DIR = "/tmp/radio";
+const COOKIES_PATH = "/tmp/radio/yt_cookies.txt";
 const MAX_QUEUE = 50;
+
+// Write YouTube cookies from env var (base64 encoded) to file on startup
+function initCookies() {
+  const b64 = process.env.YT_COOKIES_B64;
+  if (b64) {
+    try {
+      fs.mkdirSync(RADIO_DIR, { recursive: true });
+      fs.writeFileSync(COOKIES_PATH, Buffer.from(b64, "base64").toString("utf-8"));
+      console.log("[radio] YouTube cookies loaded from env");
+    } catch (err) {
+      console.error("[radio] Failed to write cookies:", err.message);
+    }
+  } else {
+    console.log("[radio] No YT_COOKIES_B64 env var, yt-dlp will run without cookies");
+  }
+}
 
 class Radio extends EventEmitter {
   constructor() {
@@ -19,6 +36,7 @@ class Radio extends EventEmitter {
     this.downloadingSet = new Set(); // track queries being downloaded
 
     fs.mkdirSync(RADIO_DIR, { recursive: true });
+    initCookies();
   }
 
   // Search YouTube and download audio
@@ -68,8 +86,12 @@ class Radio extends EventEmitter {
         "--dump-json",
         "--no-playlist",
         "--default-search", "ytsearch1",
-        query,
       ];
+      // Add cookies if available
+      if (fs.existsSync(COOKIES_PATH)) {
+        args.push("--cookies", COOKIES_PATH);
+      }
+      args.push(query);
 
       const proc = spawn("yt-dlp", args, { timeout: 30000 });
       let stdout = "";
@@ -108,9 +130,12 @@ class Radio extends EventEmitter {
         "--audio-format", "mp3",
         "--audio-quality", "5", // ~128kbps
         "--no-playlist",
-        "-o", outputPath,
-        url,
       ];
+      // Add cookies if available
+      if (fs.existsSync(COOKIES_PATH)) {
+        args.push("--cookies", COOKIES_PATH);
+      }
+      args.push("-o", outputPath, url);
 
       console.log(`[radio] downloading: ${url}`);
       const proc = spawn("yt-dlp", args, { timeout: 120000 });
