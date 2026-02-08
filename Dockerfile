@@ -1,5 +1,5 @@
 FROM node:22-bookworm
-# cache-bust: 2026-02-09a
+# cache-bust: 2026-02-09b
 
 # 1. Install system dependencies (including Chrome/Playwright libs)
 RUN apt-get update \
@@ -50,7 +50,7 @@ RUN apt-get update \
 RUN SING_BOX_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//') \
   && echo "Installing sing-box v${SING_BOX_VERSION}..." \
   && curl -Lo /tmp/sing-box.deb "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box_${SING_BOX_VERSION}_linux_amd64.deb" \
-  && dpkg -i /tmp/sing-box.deb \
+  && (dpkg -i /tmp/sing-box.deb || true) \
   && rm /tmp/sing-box.deb \
   && mkdir -p /etc/sing-box \
   && sing-box version
