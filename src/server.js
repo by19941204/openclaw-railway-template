@@ -1045,6 +1045,21 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 .playlist-scroll::-webkit-scrollbar { width: 3px; }
 .playlist-scroll::-webkit-scrollbar-track { background: transparent; }
 .playlist-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+@keyframes heartBounce {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(0.75); }
+  40%  { transform: scale(1.25); }
+  60%  { transform: scale(0.95); }
+  80%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.heart-bounce { animation: heartBounce 0.5s ease-out; }
+@keyframes heartFall {
+  0%   { transform: translateY(-20px) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(105vh) translateX(var(--sway)) rotate(var(--rot)); opacity: 0; }
+}
 </style>
 </head>
 <body class="bg-background-dark text-white h-screen flex flex-col relative overflow-hidden">
@@ -1110,7 +1125,7 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 <!-- Controls -->
 <div class="grid grid-cols-[1fr,auto,1fr] items-center px-8 pt-2 pb-3 z-20 relative">
   <div class="flex justify-end pr-6">
-    <button class="text-white/40 hover:text-red-400 transition-colors p-4 active:scale-90" id="likeBtn">
+    <button class="text-white/60 hover:text-red-400 transition-colors p-4 active:scale-90" id="likeBtn">
       <span class="material-icons-round text-3xl" id="likeIcon">favorite_border</span>
     </button>
   </div>
@@ -1218,20 +1233,52 @@ skipBtn.addEventListener('click', async () => {
 });
 
 let likedTrackId = null;
-likeBtn.addEventListener('click', async () => {
+likeBtn.addEventListener('click', () => {
   const nowId = trackTitle.textContent;
   if (!nowId || nowId === '\\u2014' || likedTrackId === nowId) return;
+
+  // 1. Optimistic UI — red heart immediately
   likedTrackId = nowId;
   likeIcon.textContent = 'favorite';
-  likeBtn.classList.remove('text-white/40');
+  likeBtn.classList.remove('text-white/60');
   likeBtn.classList.add('text-red-400');
-  await fetch('/radio/like', { method: 'POST' });
-  setTimeout(() => {
+
+  // 2. Bounce animation (Spotify-style)
+  likeBtn.classList.remove('heart-bounce');
+  void likeBtn.offsetWidth;
+  likeBtn.classList.add('heart-bounce');
+
+  // 3. Heart rain
+  showHeartRain();
+
+  // 4. Fire-and-forget request — rollback on failure
+  fetch('/radio/like', { method: 'POST' }).catch(() => {
+    likedTrackId = null;
     likeIcon.textContent = 'favorite_border';
     likeBtn.classList.remove('text-red-400');
-    likeBtn.classList.add('text-white/40');
-  }, 1500);
+    likeBtn.classList.add('text-white/60');
+  });
 });
+
+function showHeartRain() {
+  const colors = ['#FF1744','#FF4081','#FF6B6B','#E91E63','#FF8A80','#F48FB1','#CE93D8'];
+  for (let i = 0; i < 30; i++) {
+    const h = document.createElement('div');
+    h.textContent = '\\u2764';
+    const size = 14 + Math.random() * 22;
+    const sway = (Math.random() - 0.5) * 60;
+    const rot = (Math.random() - 0.5) * 90;
+    h.style.cssText = 'position:fixed;top:-20px;z-index:9999;pointer-events:none;' +
+      'font-size:' + size + 'px;' +
+      'left:' + (Math.random() * 100) + 'vw;' +
+      'color:' + colors[Math.floor(Math.random() * colors.length)] + ';' +
+      '--sway:' + sway + 'px;--rot:' + rot + 'deg;' +
+      'animation:heartFall ' + (2.5 + Math.random() * 2) + 's ease-in forwards;' +
+      'animation-delay:' + (Math.random() * 0.8) + 's;';
+    document.body.appendChild(h);
+    h.addEventListener('animationend', () => h.remove());
+  }
+}
 
 async function updateNow() {
   try {
@@ -1251,7 +1298,7 @@ async function updateNow() {
         likedTrackId = null;
         likeIcon.textContent = 'favorite_border';
         likeBtn.classList.remove('text-red-400');
-        likeBtn.classList.add('text-white/40');
+        likeBtn.classList.add('text-white/60');
       }
       trackTitle.textContent = data.currentTrack.title;
       trackArtist.textContent = data.currentTrack.artist;
