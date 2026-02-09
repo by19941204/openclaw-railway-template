@@ -51,10 +51,11 @@ class Radio extends EventEmitter {
     );
     const results = await Promise.all(urlChecks);
 
-    // Pick the first one that has a valid audio URL (preserves search ranking)
+    // Collect all candidates with valid audio URLs (preserves search ranking)
+    const candidates = [];
     for (const { song, data } of results) {
       if (data && data.url && data.code === 200) {
-        const info = {
+        candidates.push({
           neteaseId: song.id,
           title: song.name,
           artist: song.ar ? song.ar.map((a) => a.name).join(", ") : "Unknown",
@@ -62,14 +63,17 @@ class Radio extends EventEmitter {
           thumbnail: song.al && song.al.picUrl ? song.al.picUrl : null,
           audioUrl: data.url,
           audioSize: data.size || 0,
-        };
-        console.log(`[radio] found: "${info.title}" by ${info.artist} (${info.duration}s, ${Math.round(info.audioSize / 1024)}KB)`);
-        return info;
+        });
       }
     }
 
-    console.log(`[radio] all results for "${query}" have no available audio URL`);
-    return null;
+    if (candidates.length === 0) {
+      console.log(`[radio] all results for "${query}" have no available audio URL`);
+      return null;
+    }
+
+    console.log(`[radio] found ${candidates.length} candidate(s) for "${query}"`);
+    return candidates;
   }
 
   // Download audio file from URL
@@ -85,39 +89,77 @@ class Radio extends EventEmitter {
     console.log(`[radio] downloaded: ${Math.round(stat.size / 1024)}KB -> ${outputPath}`);
   }
 
-  // Search and download a track
+  // Get actual audio duration using ffprobe (returns seconds)
+  _getFileDuration(filePath) {
+    return new Promise((resolve) => {
+      const proc = spawn("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        filePath,
+      ]);
+      let out = "";
+      proc.stdout.on("data", (d) => { out += d.toString(); });
+      proc.on("close", () => {
+        const dur = parseFloat(out.trim());
+        resolve(isNaN(dur) ? 0 : dur);
+      });
+      proc.on("error", () => resolve(0));
+    });
+  }
+
+  // Search and download a track (skips tracks shorter than 60s)
   async downloadTrack(query) {
     if (this.downloadingSet.has(query)) {
       return null; // already downloading
     }
     this.downloadingSet.add(query);
 
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const outputPath = path.join(RADIO_DIR, `${id}.mp3`);
-
     try {
-      const info = await this._searchNetease(query);
-      if (!info) {
+      const candidates = await this._searchNetease(query);
+      if (!candidates) {
         throw new Error(`No results for: ${query}`);
       }
 
-      await this._downloadFile(info.audioUrl, outputPath);
+      // Try each candidate — skip if too short
+      for (const info of candidates) {
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const outputPath = path.join(RADIO_DIR, `${id}.mp3`);
 
-      const track = {
-        id,
-        title: info.title || query,
-        artist: info.artist || "Unknown",
-        duration: info.duration || 0,
-        query,
-        filePath: outputPath,
-        thumbnail: info.thumbnail || null,
-      };
+        try {
+          await this._downloadFile(info.audioUrl, outputPath);
 
-      return track;
+          // Verify actual duration with ffprobe
+          const realDuration = await this._getFileDuration(outputPath);
+          if (realDuration > 0 && realDuration < 60) {
+            console.log(`[radio] skipping "${info.title}" — too short (${Math.round(realDuration)}s < 60s)`);
+            try { fs.unlinkSync(outputPath); } catch {}
+            continue; // try next candidate
+          }
+
+          const track = {
+            id,
+            title: info.title || query,
+            artist: info.artist || "Unknown",
+            duration: realDuration > 0 ? Math.round(realDuration) : (info.duration || 0),
+            query,
+            filePath: outputPath,
+            thumbnail: info.thumbnail || null,
+          };
+
+          console.log(`[radio] ready: "${track.title}" by ${track.artist} (${track.duration}s)`);
+          return track;
+        } catch (dlErr) {
+          console.error(`[radio] download failed for "${info.title}":`, dlErr.message);
+          try { fs.unlinkSync(outputPath); } catch {}
+          continue; // try next candidate
+        }
+      }
+
+      console.log(`[radio] all candidates for "${query}" failed or too short`);
+      return null;
     } catch (err) {
       console.error(`[radio] download error for "${query}":`, err.message);
-      // Clean up partial file
-      try { fs.unlinkSync(outputPath); } catch {}
       return null;
     } finally {
       this.downloadingSet.delete(query);
@@ -161,6 +203,36 @@ class Radio extends EventEmitter {
     this._stopFfmpeg();
 
     if (this.queue.length === 0) {
+      // Queue empty — but a download might be in progress.
+      // Wait up to 10s for a track to appear before giving up.
+      if (this.downloadingSet.size > 0) {
+        console.log(`[radio] queue empty, waiting for ${this.downloadingSet.size} pending download(s)...`);
+        this.currentTrack = null;
+        this.isPlaying = true; // stay "playing" so addToQueue triggers _playNext
+        this._notifyWebhook("queue_low");
+
+        let waited = 0;
+        const waitInterval = setInterval(() => {
+          waited += 500;
+          if (this.queue.length > 0) {
+            clearInterval(waitInterval);
+            console.log(`[radio] track arrived after ${waited}ms wait`);
+            this._playNext();
+          } else if (waited >= 10000 || this.downloadingSet.size === 0) {
+            clearInterval(waitInterval);
+            if (this.queue.length > 0) {
+              this._playNext();
+            } else {
+              this.isPlaying = false;
+              this.currentTrack = null;
+              console.log("[radio] queue empty after waiting, stopped");
+              this._notifyWebhook("queue_empty");
+            }
+          }
+        }, 500);
+        return;
+      }
+
       this.isPlaying = false;
       this.currentTrack = null;
       console.log("[radio] queue empty, stopped");
