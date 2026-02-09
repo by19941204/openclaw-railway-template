@@ -952,6 +952,11 @@ app.post("/radio/skip", (_req, res) => {
   return res.json(radio.skip());
 });
 
+// Like current track
+app.post("/radio/like", (_req, res) => {
+  return res.json(radio.like());
+});
+
 // Set volume
 app.post("/radio/volume", (req, res) => {
   const { volume } = req.body || {};
@@ -1104,7 +1109,11 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 
 <!-- Controls -->
 <div class="grid grid-cols-[1fr,auto,1fr] items-center px-8 pt-2 pb-3 z-20 relative">
-  <div></div>
+  <div class="flex justify-end pr-6">
+    <button class="text-white/40 hover:text-red-400 transition-colors p-4 active:scale-90" id="likeBtn">
+      <span class="material-icons-round text-3xl" id="likeIcon">favorite_border</span>
+    </button>
+  </div>
   <button class="p-4 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all" id="playBtn">
     <span class="material-icons-round text-3xl text-white" id="playIcon">play_arrow</span>
   </button>
@@ -1139,6 +1148,8 @@ const audio = document.getElementById('audio');
 const playBtn = document.getElementById('playBtn');
 const playIcon = document.getElementById('playIcon');
 const skipBtn = document.getElementById('skipBtn');
+const likeBtn = document.getElementById('likeBtn');
+const likeIcon = document.getElementById('likeIcon');
 const trackTitle = document.getElementById('trackTitle');
 const trackArtist = document.getElementById('trackArtist');
 const vinyl = document.getElementById('vinyl');
@@ -1198,7 +1209,28 @@ playBtn.addEventListener('click', () => {
 
 skipBtn.addEventListener('click', async () => {
   await fetch('/radio/skip', { method: 'POST' });
+  // Reconnect stream immediately so audio starts without waiting for stalled event
+  if (isAudioPlaying) {
+    audio.src = '/radio/stream?' + Date.now();
+    audio.play().catch(() => {});
+  }
   updateNow();
+});
+
+let likedTrackId = null;
+likeBtn.addEventListener('click', async () => {
+  const nowId = trackTitle.textContent;
+  if (!nowId || nowId === '\\u2014' || likedTrackId === nowId) return;
+  likedTrackId = nowId;
+  likeIcon.textContent = 'favorite';
+  likeBtn.classList.remove('text-white/40');
+  likeBtn.classList.add('text-red-400');
+  await fetch('/radio/like', { method: 'POST' });
+  setTimeout(() => {
+    likeIcon.textContent = 'favorite_border';
+    likeBtn.classList.remove('text-red-400');
+    likeBtn.classList.add('text-white/40');
+  }, 1500);
 });
 
 async function updateNow() {
@@ -1214,6 +1246,13 @@ async function updateNow() {
 
     let items = [];
     if (data.isPlaying && data.currentTrack) {
+      // Reset like button when track changes
+      if (trackTitle.textContent !== data.currentTrack.title) {
+        likedTrackId = null;
+        likeIcon.textContent = 'favorite_border';
+        likeBtn.classList.remove('text-red-400');
+        likeBtn.classList.add('text-white/40');
+      }
       trackTitle.textContent = data.currentTrack.title;
       trackArtist.textContent = data.currentTrack.artist;
       currentStartedAt = data.currentTrack.startedAt || null;
@@ -1330,7 +1369,7 @@ audio.addEventListener('error', () => {
     setTimeout(() => {
       audio.src = '/radio/stream?' + Date.now();
       audio.play().catch(() => {});
-    }, 2000);
+    }, 1000);
   }
 });
 audio.addEventListener('stalled', () => {
@@ -1338,7 +1377,7 @@ audio.addEventListener('stalled', () => {
     setTimeout(() => {
       audio.src = '/radio/stream?' + Date.now();
       audio.play().catch(() => {});
-    }, 3000);
+    }, 1000);
   }
 });
 </script>

@@ -255,7 +255,7 @@ class Radio extends EventEmitter {
     // Use ffmpeg to stream the mp3 to all connected clients
     const volumeFilter = this.volume / 100;
     const args = [
-      "-re", // read at native speed (real-time)
+      "-readrate", "1", // real-time pacing without startup delay (unlike -re)
       "-i", track.filePath,
       "-af", `volume=${volumeFilter}`,
       "-f", "mp3",
@@ -341,6 +341,20 @@ class Radio extends EventEmitter {
     const skipped = this.currentTrack?.title || "Unknown";
     this._playNext();
     return { ok: true, skipped };
+  }
+
+  // Like current track — notify bot via webhook
+  like() {
+    if (!this.currentTrack) {
+      return { ok: false, error: "Nothing playing" };
+    }
+    const track = this.currentTrack;
+    console.log(`[radio] liked: "${track.title}" by ${track.artist}`);
+    this._notifyWebhook("track_liked");
+    return {
+      ok: true,
+      track: { title: track.title, artist: track.artist, query: track.query },
+    };
   }
 
   // Set volume (0-100)
