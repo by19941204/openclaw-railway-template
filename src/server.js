@@ -1103,16 +1103,14 @@ body { font-family: "Inter", sans-serif; min-height: 100dvh; }
 </div>
 
 <!-- Controls -->
-<div class="flex items-center justify-center px-2 pt-2 pb-3 z-20 relative">
-  <div class="flex items-center space-x-10">
-    <div class="w-14"></div>
-    <button class="p-4 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all" id="playBtn">
-      <span class="material-icons-round text-3xl text-white" id="playIcon">play_arrow</span>
-    </button>
-    <button class="text-white/40 hover:text-white transition-colors p-4 active:scale-90 -m-2" id="skipBtn">
-      <span class="material-icons-round text-4xl">skip_next</span>
-    </button>
-  </div>
+<div class="grid grid-cols-3 items-center px-8 pt-2 pb-3 z-20 relative">
+  <div></div>
+  <button class="justify-self-center p-4 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-all" id="playBtn">
+    <span class="material-icons-round text-3xl text-white" id="playIcon">play_arrow</span>
+  </button>
+  <button class="justify-self-end text-white/40 hover:text-white transition-colors p-4 active:scale-90" id="skipBtn">
+    <span class="material-icons-round text-4xl">skip_next</span>
+  </button>
 </div>
 
 <!-- Playlist Panel -->
