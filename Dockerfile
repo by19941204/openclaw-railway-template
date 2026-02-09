@@ -53,7 +53,8 @@ RUN useradd -m -s /bin/bash openclaw \
   && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew \
   && mkdir -p /tmp/radio && chown openclaw:openclaw /tmp/radio
 
-# 4. Install Playwright Chromium as openclaw user so it goes to /home/openclaw/.cache/ms-playwright/
+# 4. Install Playwright system deps (root, uses apt-get) + browser (openclaw user)
+RUN npx playwright install-deps chromium
 USER openclaw
 RUN npx playwright install chromium
 

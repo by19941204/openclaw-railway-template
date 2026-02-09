@@ -12,6 +12,8 @@ BROWSER_HOME_DIR="/home/openclaw/.openclaw/browser"
 
 mkdir -p "$BROWSER_VOLUME_DIR"
 mkdir -p "$(dirname "$BROWSER_HOME_DIR")"
+# Fix ownership of ~/.openclaw parent dir (may be root-owned from previous runs)
+chown openclaw:openclaw "$(dirname "$BROWSER_HOME_DIR")"
 
 # If the home dir already exists as a real directory (not a symlink), remove it
 # so we can replace it with a symlink to the volume.
@@ -26,5 +28,6 @@ fi
 
 chown -R openclaw:openclaw "$BROWSER_VOLUME_DIR"
 chown -h openclaw:openclaw "$BROWSER_HOME_DIR"
+chown openclaw:openclaw "$(dirname "$BROWSER_HOME_DIR")"
 
 exec gosu openclaw node src/server.js
