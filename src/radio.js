@@ -43,20 +43,21 @@ class Radio extends EventEmitter {
       return null;
     }
 
-    // Try to find one with available audio (skip VIP-only tracks)
-    for (const song of songs) {
-      const urlResult = await song_url_v1({
-        id: song.id,
-        level: "exhigh",
-        realIP: REAL_IP,
-      });
+    // Check all songs for available audio URLs in parallel
+    const urlChecks = songs.map((song) =>
+      song_url_v1({ id: song.id, level: "exhigh", realIP: REAL_IP })
+        .then((r) => ({ song, data: r.body.data?.[0] }))
+        .catch(() => ({ song, data: null }))
+    );
+    const results = await Promise.all(urlChecks);
 
-      const data = urlResult.body.data && urlResult.body.data[0];
+    // Pick the first one that has a valid audio URL (preserves search ranking)
+    for (const { song, data } of results) {
       if (data && data.url && data.code === 200) {
         const info = {
           neteaseId: song.id,
           title: song.name,
-          artist: song.ar ? song.ar.map(a => a.name).join(", ") : "Unknown",
+          artist: song.ar ? song.ar.map((a) => a.name).join(", ") : "Unknown",
           duration: Math.round((song.dt || 0) / 1000), // ms -> seconds
           thumbnail: song.al && song.al.picUrl ? song.al.picUrl : null,
           audioUrl: data.url,
@@ -174,8 +175,8 @@ class Radio extends EventEmitter {
 
     console.log(`[radio] now playing: "${track.title}" by ${track.artist}`);
 
-    // Check remaining queue and notify if low (< 3 songs)
-    if (this.queue.length < 3) {
+    // Check remaining queue and notify if low (< 5 songs)
+    if (this.queue.length < 5) {
       this._notifyWebhook("queue_low");
     }
 
@@ -219,23 +220,22 @@ class Radio extends EventEmitter {
 
     this.ffmpegProc.on("close", (code) => {
       console.log(`[radio] ffmpeg exited (code=${code}) for "${track.title}"`);
-      // Clean up the audio file
-      try { fs.unlinkSync(track.filePath); } catch {}
       this.ffmpegProc = null;
 
-      // Play next track
+      // Play next track first, then clean up file async
       if (this.isPlaying) {
         this._playNext();
       }
+      fs.unlink(track.filePath, () => {});
     });
 
     this.ffmpegProc.on("error", (err) => {
       console.error(`[radio] ffmpeg error: ${err.message}`);
       this.ffmpegProc = null;
-      try { fs.unlinkSync(track.filePath); } catch {}
       if (this.isPlaying) {
         this._playNext();
       }
+      fs.unlink(track.filePath, () => {});
     });
 
     this.emit("trackChanged", this.getNowPlaying());
