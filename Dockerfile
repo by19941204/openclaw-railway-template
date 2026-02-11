@@ -1,5 +1,5 @@
 FROM node:22-bookworm
-# cache-bust: 2026-02-09b
+# cache-bust: 2026-02-11
 
 # 1. Install system dependencies (including Chrome/Playwright libs)
 RUN apt-get update \
