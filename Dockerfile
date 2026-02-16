@@ -44,7 +44,7 @@ RUN apt-get update \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 # 2. Install OpenClaw globally (as root)
-# cache-bust: 2026-02-12
+# cache-bust: 2026-02-16
 RUN npm install -g openclaw@latest
 
 # 3. Create openclaw user BEFORE installing Playwright
