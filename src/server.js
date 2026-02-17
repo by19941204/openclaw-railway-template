@@ -1532,6 +1532,19 @@ const server = app.listen(PORT, () => {
       } catch (err) {
         console.warn(`[wrapper] doctor --fix failed: ${err.message}`);
       }
+
+      // Set model fallback to OpenAI gpt-5.3-codex
+      try {
+        const fb = await runCmd(
+          OPENCLAW_NODE,
+          clawArgs(["models", "fallbacks", "add", "openai/gpt-5.3-codex"]),
+        );
+        console.log(`[wrapper] model fallback set exit=${fb.code}`);
+        if (fb.output) console.log(fb.output);
+      } catch (err) {
+        console.warn(`[wrapper] model fallback failed: ${err.message}`);
+      }
+
       await ensureGatewayRunning();
     })().catch((err) => {
       console.error(`[wrapper] failed to start gateway at boot: ${err.message}`);
