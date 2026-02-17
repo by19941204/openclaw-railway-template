@@ -150,8 +150,15 @@ async function startGateway() {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
+  // Kill any leftover gateway processes before clearing locks
+  try {
+    const { execSync } = require("child_process");
+    execSync("pkill -f 'openclaw.*gateway' 2>/dev/null || true", { timeout: 5000 });
+  } catch {}
+
   for (const lockPath of [
     path.join(STATE_DIR, "gateway.lock"),
+    path.join(STATE_DIR, "gateway.pid"),
     "/tmp/openclaw-gateway.lock",
   ]) {
     try {
