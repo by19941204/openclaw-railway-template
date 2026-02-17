@@ -1580,6 +1580,14 @@ server.on("upgrade", async (req, socket, head) => {
     socket.destroy();
     return;
   }
+  // Inject gateway token into the URL so OpenClaw accepts the WebSocket.
+  // The proxyReqWs header injection alone isn't enough — newer OpenClaw
+  // versions check the URL query parameter for WebSocket auth.
+  const wsUrl = new URL(req.url, `http://${req.headers.host}`);
+  if (!wsUrl.searchParams.has("token")) {
+    wsUrl.searchParams.set("token", OPENCLAW_GATEWAY_TOKEN);
+    req.url = wsUrl.pathname + wsUrl.search;
+  }
   proxy.ws(req, socket, head, { target: GATEWAY_TARGET });
 });
 
