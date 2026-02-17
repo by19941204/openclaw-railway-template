@@ -1540,6 +1540,36 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] doctor --fix failed: ${err.message}`);
       }
 
+      // Write OpenAI OAuth token to auth.json if not already present
+      try {
+        const agentAuthDir = path.join(STATE_DIR, "agents", "main", "agent");
+        const authJsonPath = path.join(agentAuthDir, "auth.json");
+        let needsWrite = true;
+        try {
+          const existing = JSON.parse(fs.readFileSync(authJsonPath, "utf8"));
+          if (existing["openai-codex"]?.refresh) needsWrite = false;
+        } catch {}
+        if (needsWrite) {
+          fs.mkdirSync(agentAuthDir, { recursive: true });
+          const authData = {
+            "openai-codex": {
+              type: "oauth",
+              access: process.env.OPENAI_OAUTH_ACCESS_TOKEN || "",
+              refresh: process.env.OPENAI_OAUTH_REFRESH_TOKEN || "",
+              expires: Number(process.env.OPENAI_OAUTH_EXPIRES) || 0,
+            },
+          };
+          if (authData["openai-codex"].refresh) {
+            fs.writeFileSync(authJsonPath, JSON.stringify(authData, null, 2));
+            console.log("[wrapper] wrote OpenAI OAuth token to auth.json");
+          }
+        } else {
+          console.log("[wrapper] OpenAI OAuth token already in auth.json");
+        }
+      } catch (err) {
+        console.warn(`[wrapper] auth.json write failed: ${err.message}`);
+      }
+
       // Set model fallback to OpenAI gpt-5.3-codex
       try {
         const fb = await runCmd(
