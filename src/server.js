@@ -107,6 +107,7 @@ function isConfigured() {
 
 let gatewayProc = null;
 let gatewayStarting = null;
+let shuttingDown = false;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -149,6 +150,15 @@ async function startGateway() {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
+  for (const lockPath of [
+    path.join(STATE_DIR, "gateway.lock"),
+    "/tmp/openclaw-gateway.lock",
+  ]) {
+    try {
+      fs.rmSync(lockPath, { force: true });
+    } catch {}
+  }
+
   const args = [
     "gateway",
     "run",
@@ -160,6 +170,7 @@ async function startGateway() {
     "token",
     "--token",
     OPENCLAW_GATEWAY_TOKEN,
+    "--allow-unconfigured",
   ];
 
   gatewayProc = childProcess.spawn(OPENCLAW_NODE, clawArgs(args), {
@@ -189,6 +200,16 @@ async function startGateway() {
   gatewayProc.on("exit", (code, signal) => {
     console.error(`[gateway] exited code=${code} signal=${signal}`);
     gatewayProc = null;
+    if (!shuttingDown && isConfigured()) {
+      console.log("[gateway] scheduling auto-restart in 2s...");
+      setTimeout(() => {
+        if (!shuttingDown && !gatewayProc && isConfigured()) {
+          ensureGatewayRunning().catch((err) => {
+            console.error(`[gateway] auto-restart failed: ${err.message}`);
+          });
+        }
+      }, 2000);
+    }
   });
 }
 
@@ -294,11 +315,38 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
+app.get("/healthz", async (_req, res) => {
+  let gateway = "unconfigured";
+  if (isConfigured()) {
+    gateway = isGatewayReady() ? "ready" : "starting";
+  }
+  res.json({ ok: true, gateway });
+});
 
-app.get("/setup/styles.css", (_req, res) => {
-  res.type("text/css");
-  res.sendFile(path.join(process.cwd(), "src", "public", "styles.css"));
+app.get("/setup/healthz", async (_req, res) => {
+  const configured = isConfigured();
+  const gatewayRunning = isGatewayReady();
+  const starting = isGatewayStarting();
+  let gatewayReachable = false;
+
+  if (gatewayRunning) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const r = await fetch(`${GATEWAY_TARGET}/`, { signal: controller.signal });
+      clearTimeout(timeout);
+      gatewayReachable = r !== null;
+    } catch {}
+  }
+
+  res.json({
+    ok: true,
+    wrapper: true,
+    configured,
+    gatewayRunning,
+    gatewayStarting: starting,
+    gatewayReachable,
+  });
 });
 
 app.get("/setup", requireSetupAuth, (_req, res) => {
@@ -619,16 +667,7 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
         extra += `[models set] exit=${modelResult.code}\n${modelResult.output || ""}`;
       }
 
-      const channelsHelp = await runCmd(
-        OPENCLAW_NODE,
-        clawArgs(["channels", "add", "--help"]),
-      );
-      const helpText = channelsHelp.output || "";
-
       async function configureChannel(name, cfgObj) {
-        if (!helpText.includes(name)) {
-          return `\n[${name}] skipped (this openclaw build does not list ${name} in \`channels add --help\`)\n`;
-        }
         const set = await runCmd(
           OPENCLAW_NODE,
           clawArgs([
@@ -903,10 +942,24 @@ const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
   ws: true,
   xfwd: true,
+  proxyTimeout: 120_000,
+  timeout: 120_000,
 });
 
-proxy.on("error", (err, _req, _res) => {
+proxy.on("error", (err, _req, res) => {
   console.error("[proxy]", err);
+  if (res && typeof res.headersSent !== "undefined" && !res.headersSent) {
+    res.writeHead(503, { "Content-Type": "text/html" });
+    try {
+      const html = fs.readFileSync(
+        path.join(process.cwd(), "src", "public", "loading.html"),
+        "utf8",
+      );
+      res.end(html);
+    } catch {
+      res.end("Gateway unavailable. Retrying...");
+    }
+  }
 });
 
 proxy.on("proxyReq", (proxyReq, req, res) => {
@@ -1439,17 +1492,20 @@ app.use(async (req, res) => {
   }
 
   if (isConfigured()) {
-    if (isGatewayStarting() && !isGatewayReady()) {
-      return res.sendFile(path.join(process.cwd(), "src", "public", "loading.html"));
-    }
+    if (!isGatewayReady()) {
+      try {
+        await ensureGatewayRunning();
+      } catch {
+        return res
+          .status(503)
+          .sendFile(path.join(process.cwd(), "src", "public", "loading.html"));
+      }
 
-    try {
-      await ensureGatewayRunning();
-    } catch (err) {
-      return res
-        .status(503)
-        .type("text/plain")
-        .send(`Gateway not ready: ${String(err)}`);
+      if (!isGatewayReady()) {
+        return res
+          .status(503)
+          .sendFile(path.join(process.cwd(), "src", "public", "loading.html"));
+      }
     }
   }
 
@@ -1467,7 +1523,17 @@ const server = app.listen(PORT, () => {
   console.log(`[wrapper] configured: ${isConfigured()}`);
 
   if (isConfigured()) {
-    ensureGatewayRunning().catch((err) => {
+    (async () => {
+      try {
+        console.log("[wrapper] running openclaw doctor --fix...");
+        const dr = await runCmd(OPENCLAW_NODE, clawArgs(["doctor", "--fix"]));
+        console.log(`[wrapper] doctor --fix exit=${dr.code}`);
+        if (dr.output) console.log(dr.output);
+      } catch (err) {
+        console.warn(`[wrapper] doctor --fix failed: ${err.message}`);
+      }
+      await ensureGatewayRunning();
+    })().catch((err) => {
       console.error(`[wrapper] failed to start gateway at boot: ${err.message}`);
     });
   }
@@ -1519,6 +1585,7 @@ server.on("upgrade", async (req, socket, head) => {
 
 async function gracefulShutdown(signal) {
   console.log(`[wrapper] received ${signal}, shutting down`);
+  shuttingDown = true;
 
   // Shutdown radio
   radio.destroy();

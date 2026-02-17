@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 chown -R openclaw:openclaw /data
+chmod 700 /data
+
+# Persist Homebrew installs on the Railway Volume.
+if [ ! -d /data/.linuxbrew ]; then
+  cp -a /home/linuxbrew/.linuxbrew /data/.linuxbrew
+fi
+
+rm -rf /home/linuxbrew/.linuxbrew
+ln -sfn /data/.linuxbrew /home/linuxbrew/.linuxbrew
 
 # Persist Chrome/Playwright browser profile on the Railway Volume.
 # OpenClaw stores Chrome user-data under $HOME/.openclaw/browser/ by default,
