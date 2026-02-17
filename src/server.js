@@ -1540,34 +1540,36 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] doctor --fix failed: ${err.message}`);
       }
 
-      // Write OpenAI OAuth token to auth.json if not already present
+      // Write OpenAI OAuth token to auth-profiles.json if not already present
       try {
         const agentAuthDir = path.join(STATE_DIR, "agents", "main", "agent");
-        const authJsonPath = path.join(agentAuthDir, "auth.json");
+        const authProfilesPath = path.join(agentAuthDir, "auth-profiles.json");
         let needsWrite = true;
         try {
-          const existing = JSON.parse(fs.readFileSync(authJsonPath, "utf8"));
-          if (existing["openai-codex"]?.refresh) needsWrite = false;
+          const existing = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
+          if (existing.profiles?.["openai-codex:default"]?.refresh) needsWrite = false;
         } catch {}
-        if (needsWrite) {
+        if (needsWrite && process.env.OPENAI_OAUTH_REFRESH_TOKEN) {
           fs.mkdirSync(agentAuthDir, { recursive: true });
-          const authData = {
-            "openai-codex": {
-              type: "oauth",
-              access: process.env.OPENAI_OAUTH_ACCESS_TOKEN || "",
-              refresh: process.env.OPENAI_OAUTH_REFRESH_TOKEN || "",
-              expires: Number(process.env.OPENAI_OAUTH_EXPIRES) || 0,
-            },
+          // Read existing auth-profiles.json or create new
+          let authProfiles = { version: 1, profiles: {} };
+          try {
+            authProfiles = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
+          } catch {}
+          authProfiles.profiles["openai-codex:default"] = {
+            type: "oauth",
+            provider: "openai-codex",
+            access: process.env.OPENAI_OAUTH_ACCESS_TOKEN || "",
+            refresh: process.env.OPENAI_OAUTH_REFRESH_TOKEN || "",
+            expires: Number(process.env.OPENAI_OAUTH_EXPIRES) || 0,
           };
-          if (authData["openai-codex"].refresh) {
-            fs.writeFileSync(authJsonPath, JSON.stringify(authData, null, 2));
-            console.log("[wrapper] wrote OpenAI OAuth token to auth.json");
-          }
-        } else {
-          console.log("[wrapper] OpenAI OAuth token already in auth.json");
+          fs.writeFileSync(authProfilesPath, JSON.stringify(authProfiles, null, 2));
+          console.log("[wrapper] wrote OpenAI OAuth token to auth-profiles.json");
+        } else if (!needsWrite) {
+          console.log("[wrapper] OpenAI OAuth token already in auth-profiles.json");
         }
       } catch (err) {
-        console.warn(`[wrapper] auth.json write failed: ${err.message}`);
+        console.warn(`[wrapper] auth-profiles.json write failed: ${err.message}`);
       }
 
       // Set model fallback to OpenAI gpt-5.3-codex
