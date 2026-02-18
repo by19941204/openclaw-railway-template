@@ -2,19 +2,41 @@
 set -e
 
 # ── Disk cleanup (prevent ENOSPC) ──────────────────────────────────
-echo "[entrypoint] disk usage before cleanup:"
+echo "[entrypoint] disk before cleanup:"
 df -h /data 2>/dev/null || true
+echo "[entrypoint] top space consumers:"
+du -sh /data/* /data/.openclaw/* /data/.linuxbrew 2>/dev/null | sort -rh | head -15 || true
 
 # Clear Chrome cache (cookies/localStorage survive, cache is expendable)
 rm -rf /data/.openclaw/browser/*/Cache 2>/dev/null || true
 rm -rf /data/.openclaw/browser/*/Code\ Cache 2>/dev/null || true
 rm -rf /data/.openclaw/browser/*/GPUCache 2>/dev/null || true
 rm -rf /data/.openclaw/browser/*/Service\ Worker/CacheStorage 2>/dev/null || true
+rm -rf /data/.openclaw/browser/*/blob_storage 2>/dev/null || true
+rm -rf /data/.openclaw/browser/*/IndexedDB 2>/dev/null || true
 
 # Clear radio temp files
 rm -rf /tmp/radio/* 2>/dev/null || true
 
-echo "[entrypoint] disk usage after cleanup:"
+# Clear old config backups
+find /data/.openclaw -name "*.bak" -o -name "*.bak.*" | head -20 | xargs rm -f 2>/dev/null || true
+
+# Clear openclaw update/cache dirs
+rm -rf /data/.openclaw/cache 2>/dev/null || true
+rm -rf /data/.openclaw/tmp 2>/dev/null || true
+
+# If still >90% full, remove old session data (keeps last 5)
+USAGE=$(df /data 2>/dev/null | tail -1 | awk '{print int($5)}')
+if [ "${USAGE:-0}" -gt 90 ]; then
+  echo "[entrypoint] WARNING: disk ${USAGE}% full, aggressive cleanup..."
+  # Remove old sessions (keep most recent 5)
+  ls -dt /data/.openclaw/agents/*/sessions/*/ 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null || true
+  # Remove linuxbrew cache
+  rm -rf /data/.linuxbrew/Homebrew/Library/Taps/homebrew/homebrew-core 2>/dev/null || true
+  rm -rf /data/.linuxbrew/Homebrew/Library/Homebrew/vendor/bundle 2>/dev/null || true
+fi
+
+echo "[entrypoint] disk after cleanup:"
 df -h /data 2>/dev/null || true
 # ── End cleanup ────────────────────────────────────────────────────
 
