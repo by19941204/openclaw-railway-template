@@ -1595,9 +1595,6 @@ const server = app.listen(PORT, () => {
 setInterval(() => {
   try {
     const { execSync } = require("child_process");
-    // Remove logs older than 2 days
-    execSync('find /data/.openclaw/logs -type f \\( -name "*.log" -o -name "*.jsonl" \\) -mtime +2 -delete 2>/dev/null || true', { timeout: 10000 });
-    execSync('find /tmp/openclaw -type f -name "*.log" -mtime +2 -delete 2>/dev/null || true', { timeout: 10000 });
     // Clear Chrome cache
     execSync('rm -rf /data/.openclaw/browser/*/Cache /data/.openclaw/browser/*/Code\\ Cache /data/.openclaw/browser/*/GPUCache 2>/dev/null || true', { timeout: 10000 });
     // Clear radio temp files

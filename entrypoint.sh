@@ -4,12 +4,6 @@ set -e
 # ── Disk cleanup (prevent ENOSPC) ──────────────────────────────────
 echo "[entrypoint] disk usage before cleanup:"
 df -h /data 2>/dev/null || true
-du -sh /data/.openclaw/logs /data/.openclaw/browser /data/.linuxbrew /tmp/radio 2>/dev/null || true
-
-# Remove old logs (keep last 2 days)
-find /data/.openclaw/logs -type f -name "*.log" -mtime +2 -delete 2>/dev/null || true
-find /data/.openclaw/logs -type f -name "*.jsonl" -mtime +2 -delete 2>/dev/null || true
-find /tmp/openclaw -type f -name "*.log" -mtime +2 -delete 2>/dev/null || true
 
 # Clear Chrome cache (cookies/localStorage survive, cache is expendable)
 rm -rf /data/.openclaw/browser/*/Cache 2>/dev/null || true
