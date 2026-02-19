@@ -125,9 +125,9 @@ async function waitForGatewayReady(opts = {}) {
 
   while (Date.now() - start < timeoutMs) {
     for (const endpoint of endpoints) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 3000);
       try {
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), 3000);
         const res = await fetch(`${GATEWAY_TARGET}${endpoint}`, {
           method: "GET",
           signal: ac.signal,
@@ -138,6 +138,8 @@ async function waitForGatewayReady(opts = {}) {
           return true;
         }
       } catch (err) {
+        clearTimeout(timer);
+        if (err.name === "AbortError") continue; // fetch timed out, retry
         if (err.code !== "ECONNREFUSED" && err.cause?.code !== "ECONNREFUSED") {
           const msg = err.code || err.message;
           if (msg !== "fetch failed" && msg !== "UND_ERR_CONNECT_TIMEOUT") {
