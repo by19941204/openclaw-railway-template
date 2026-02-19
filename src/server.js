@@ -11,6 +11,11 @@ import { WebSocketServer } from "ws";
 
 import radio from "./radio.js";
 
+// Prevent unhandled rejections from crashing the process silently
+process.on("unhandledRejection", (err) => {
+  console.error("[wrapper] unhandled rejection:", err);
+});
+
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
 const STATE_DIR =
   process.env.OPENCLAW_STATE_DIR?.trim() ||
@@ -116,14 +121,18 @@ function sleep(ms) {
 async function waitForGatewayReady(opts = {}) {
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const start = Date.now();
-  const endpoints = ["/openclaw", "/openclaw", "/", "/health"];
+  const endpoints = ["/openclaw", "/", "/health"];
 
   while (Date.now() - start < timeoutMs) {
     for (const endpoint of endpoints) {
       try {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 3000);
         const res = await fetch(`${GATEWAY_TARGET}${endpoint}`, {
           method: "GET",
+          signal: ac.signal,
         });
+        clearTimeout(timer);
         if (res) {
           console.log(`[gateway] ready at ${endpoint}`);
           return true;
@@ -158,15 +167,13 @@ async function startGateway() {
 
   // Kill any leftover gateway processes before starting
   try {
-    const { execSync } = require("child_process");
-    execSync("pkill -f 'openclaw.*gateway' 2>/dev/null || true", { timeout: 5000 });
+    childProcess.execSync("pkill -f 'openclaw.*gateway' 2>/dev/null || true", { timeout: 5000 });
   } catch {}
 
   // Clean up ALL possible lock file locations (belt-and-suspenders).
   // OpenClaw stores locks in /tmp/openclaw-<uid>/gateway.<hash>.lock
   try {
-    const { execSync } = require("child_process");
-    execSync("rm -rf /tmp/openclaw-*/gateway.*.lock 2>/dev/null || true", { timeout: 5000 });
+    childProcess.execSync("rm -rf /tmp/openclaw-*/gateway.*.lock 2>/dev/null || true", { timeout: 5000 });
   } catch {}
   for (const lockPath of [
     path.join(STATE_DIR, "gateway.lock"),
@@ -1617,12 +1624,11 @@ const server = app.listen(PORT, () => {
 // Periodic disk cleanup every 6 hours to prevent ENOSPC
 setInterval(() => {
   try {
-    const { execSync } = require("child_process");
     // Clear Chrome cache
-    execSync('rm -rf /data/.openclaw/browser/*/Cache /data/.openclaw/browser/*/Code\\ Cache /data/.openclaw/browser/*/GPUCache 2>/dev/null || true', { timeout: 10000 });
+    childProcess.execSync('rm -rf /data/.openclaw/browser/*/Cache /data/.openclaw/browser/*/Code\\ Cache /data/.openclaw/browser/*/GPUCache 2>/dev/null || true', { timeout: 10000 });
     // Clear radio temp files
-    execSync('rm -rf /tmp/radio/* 2>/dev/null || true', { timeout: 5000 });
-    const df = execSync('df -h /data 2>/dev/null || true', { timeout: 5000 }).toString().trim();
+    childProcess.execSync('rm -rf /tmp/radio/* 2>/dev/null || true', { timeout: 5000 });
+    const df = childProcess.execSync('df -h /data 2>/dev/null || true', { timeout: 5000 }).toString().trim();
     console.log(`[cleanup] periodic disk cleanup done. ${df.split("\n").pop()}`);
   } catch (err) {
     console.warn(`[cleanup] failed: ${err.message}`);
