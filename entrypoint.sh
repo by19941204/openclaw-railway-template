@@ -18,6 +18,11 @@ rm -rf /data/.openclaw/browser/*/IndexedDB 2>/dev/null || true
 # Clear radio temp files
 rm -rf /tmp/radio/* 2>/dev/null || true
 
+# Clear stale gateway lock files (prevents "gateway already running" deadloop)
+rm -rf /tmp/openclaw-*/gateway.*.lock 2>/dev/null || true
+rm -f /data/.openclaw/gateway.lock /data/.openclaw/gateway.pid 2>/dev/null || true
+pkill -f 'openclaw.*gateway' 2>/dev/null || true
+
 # Clear old config backups
 find /data/.openclaw -name "*.bak" -o -name "*.bak.*" | head -20 | xargs rm -f 2>/dev/null || true
 

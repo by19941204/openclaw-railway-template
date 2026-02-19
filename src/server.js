@@ -150,16 +150,27 @@ async function startGateway() {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
-  // Kill any leftover gateway processes before clearing locks
+  // Skip OpenClaw's built-in gateway lock entirely — we manage the single
+  // gateway process ourselves via gatewayProc.  This avoids stale lock files
+  // left on the persistent volume from a previous container causing an
+  // infinite "gateway already running" restart loop.
+  process.env.OPENCLAW_ALLOW_MULTI_GATEWAY = "1";
+
+  // Kill any leftover gateway processes before starting
   try {
     const { execSync } = require("child_process");
     execSync("pkill -f 'openclaw.*gateway' 2>/dev/null || true", { timeout: 5000 });
   } catch {}
 
+  // Clean up ALL possible lock file locations (belt-and-suspenders).
+  // OpenClaw stores locks in /tmp/openclaw-<uid>/gateway.<hash>.lock
+  try {
+    const { execSync } = require("child_process");
+    execSync("rm -rf /tmp/openclaw-*/gateway.*.lock 2>/dev/null || true", { timeout: 5000 });
+  } catch {}
   for (const lockPath of [
     path.join(STATE_DIR, "gateway.lock"),
     path.join(STATE_DIR, "gateway.pid"),
-    "/tmp/openclaw-gateway.lock",
   ]) {
     try {
       fs.rmSync(lockPath, { force: true });
