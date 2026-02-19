@@ -58,8 +58,12 @@ RUN npx playwright install-deps chromium
 USER openclaw
 RUN npx playwright install chromium
 
-# 5. Install Homebrew as openclaw user
-RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# 5. Install Homebrew as openclaw user (with retry for flaky network)
+RUN for i in 1 2 3; do \
+      NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && break; \
+      echo "Homebrew install attempt $i failed, retrying..."; \
+      sleep 5; \
+    done
 
 ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
 ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
