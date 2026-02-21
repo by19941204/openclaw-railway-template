@@ -1640,6 +1640,43 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] auth-profiles.json write failed: ${err.message}`);
       }
 
+      // Register openai-codex:default in openclaw.json config
+      // CRITICAL: auth-profiles.json holds the credentials, but openclaw.json
+      // holds the auth.profiles config that tells OpenClaw which profiles exist
+      // and what mode they use. Without this, OpenClaw won't discover the profile.
+      try {
+        const configPath = path.join(STATE_DIR, "openclaw.json");
+        let config = {};
+        try {
+          config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        } catch {}
+
+        if (!config.auth) config.auth = {};
+        if (!config.auth.profiles) config.auth.profiles = {};
+
+        const needsConfigUpdate = !config.auth.profiles["openai-codex:default"]
+          || config.auth.profiles["openai-codex:default"].provider !== "openai-codex"
+          || config.auth.profiles["openai-codex:default"].mode !== "oauth";
+
+        if (needsConfigUpdate) {
+          config.auth.profiles["openai-codex:default"] = {
+            provider: "openai-codex",
+            mode: "oauth",
+          };
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+          console.log(`[wrapper] registered openai-codex:default in openclaw.json auth.profiles`);
+
+          // Verify
+          const verify = JSON.parse(fs.readFileSync(configPath, "utf8"));
+          const configProfiles = Object.keys(verify.auth?.profiles || {});
+          console.log(`[wrapper] openclaw.json auth.profiles: ${configProfiles.join(", ")}`);
+        } else {
+          console.log(`[wrapper] openai-codex:default already in openclaw.json auth.profiles`);
+        }
+      } catch (err) {
+        console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
+      }
+
       // Set model fallback to OpenAI Codex (gpt-5.3-codex)
       // IMPORTANT: provider must be "openai-codex" (not "openai") to match
       // the auth profile registered in auth-profiles.json as "openai-codex:default"
