@@ -1677,6 +1677,25 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
       }
 
+      // Clear any stale cooldown on openai-codex:default from previous runs
+      // usageStats is a top-level field: store.usageStats["openai-codex:default"]
+      try {
+        const authPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
+        const store = JSON.parse(fs.readFileSync(authPath, "utf8"));
+        const stats = store.usageStats?.["openai-codex:default"];
+        const now = Date.now();
+        const inCooldown = (stats?.cooldownUntil > now) || (stats?.disabledUntil > now);
+        if (inCooldown) {
+          delete stats.cooldownUntil;
+          delete stats.disabledUntil;
+          delete stats.consecutiveErrors;
+          fs.writeFileSync(authPath, JSON.stringify(store, null, 2));
+          console.log(`[wrapper] cleared openai-codex:default cooldown`);
+        } else {
+          console.log(`[wrapper] openai-codex:default not in cooldown`);
+        }
+      } catch {}
+
       // Set model fallback to OpenAI Codex (gpt-5.3-codex)
       // IMPORTANT: provider must be "openai-codex" (not "openai") to match
       // the auth profile registered in auth-profiles.json as "openai-codex:default"
