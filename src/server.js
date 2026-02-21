@@ -1572,33 +1572,69 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] doctor --fix failed: ${err.message}`);
       }
 
-      // Write OpenAI OAuth token to auth-profiles.json if not already present
+      // Write OpenAI Codex OAuth token to auth-profiles.json for ALL agents
+      // OpenClaw stores auth profiles per-agent under agents/<id>/agent/auth-profiles.json.
+      // Telegram may use a different agentId than "main", so we inject into every agent dir.
       try {
-        const agentAuthDir = path.join(STATE_DIR, "agents", "main", "agent");
-        const authProfilesPath = path.join(agentAuthDir, "auth-profiles.json");
-        let needsWrite = true;
-        try {
-          const existing = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
-          if (existing.profiles?.["openai-codex:default"]?.refresh) needsWrite = false;
-        } catch {}
-        if (needsWrite && process.env.OPENAI_OAUTH_REFRESH_TOKEN) {
-          fs.mkdirSync(agentAuthDir, { recursive: true });
-          // Read existing auth-profiles.json or create new
-          let authProfiles = { version: 1, profiles: {} };
+        const codexProfile = {
+          type: "oauth",
+          provider: "openai-codex",
+          access: process.env.OPENAI_OAUTH_ACCESS_TOKEN || "",
+          refresh: process.env.OPENAI_OAUTH_REFRESH_TOKEN || "",
+          expires: Number(process.env.OPENAI_OAUTH_EXPIRES) || 0,
+        };
+
+        if (!process.env.OPENAI_OAUTH_REFRESH_TOKEN) {
+          console.log("[wrapper] no OPENAI_OAUTH_REFRESH_TOKEN set, skipping codex auth");
+        } else {
+          // Find ALL agent directories that have auth-profiles.json (or create for main)
+          const agentsDir = path.join(STATE_DIR, "agents");
+          const agentDirsToUpdate = [];
+
+          // Always include "main" agent
+          agentDirsToUpdate.push(path.join(agentsDir, "main", "agent"));
+
+          // Also scan for any other agent dirs (e.g. "default", telegram-specific agents)
           try {
-            authProfiles = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
+            const agentIds = fs.readdirSync(agentsDir);
+            for (const id of agentIds) {
+              const agentDir = path.join(agentsDir, id, "agent");
+              if (id !== "main" && fs.existsSync(agentDir)) {
+                agentDirsToUpdate.push(agentDir);
+              }
+            }
           } catch {}
-          authProfiles.profiles["openai-codex:default"] = {
-            type: "oauth",
-            provider: "openai-codex",
-            access: process.env.OPENAI_OAUTH_ACCESS_TOKEN || "",
-            refresh: process.env.OPENAI_OAUTH_REFRESH_TOKEN || "",
-            expires: Number(process.env.OPENAI_OAUTH_EXPIRES) || 0,
-          };
-          fs.writeFileSync(authProfilesPath, JSON.stringify(authProfiles, null, 2));
-          console.log("[wrapper] wrote OpenAI OAuth token to auth-profiles.json");
-        } else if (!needsWrite) {
-          console.log("[wrapper] OpenAI OAuth token already in auth-profiles.json");
+
+          console.log(`[wrapper] injecting openai-codex auth into ${agentDirsToUpdate.length} agent dir(s): ${agentDirsToUpdate.map(d => d.replace(STATE_DIR + "/", "")).join(", ")}`);
+
+          for (const agentAuthDir of agentDirsToUpdate) {
+            const authProfilesPath = path.join(agentAuthDir, "auth-profiles.json");
+            try {
+              fs.mkdirSync(agentAuthDir, { recursive: true });
+              let authProfiles = { version: 1, profiles: {} };
+              try {
+                authProfiles = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
+              } catch {}
+
+              // Check if already has correct codex profile
+              const existing = authProfiles.profiles?.["openai-codex:default"];
+              if (existing?.refresh === codexProfile.refresh && existing?.provider === "openai-codex") {
+                console.log(`[wrapper] openai-codex:default already correct in ${authProfilesPath.replace(STATE_DIR + "/", "")}`);
+                continue;
+              }
+
+              authProfiles.profiles["openai-codex:default"] = codexProfile;
+              fs.writeFileSync(authProfilesPath, JSON.stringify(authProfiles, null, 2));
+              console.log(`[wrapper] wrote openai-codex:default to ${authProfilesPath.replace(STATE_DIR + "/", "")}`);
+
+              // Verify write
+              const verify = JSON.parse(fs.readFileSync(authProfilesPath, "utf8"));
+              const profileKeys = Object.keys(verify.profiles || {});
+              console.log(`[wrapper] verified profiles in ${authProfilesPath.replace(STATE_DIR + "/", "")}: ${profileKeys.join(", ")}`);
+            } catch (err) {
+              console.warn(`[wrapper] failed to write auth to ${agentAuthDir}: ${err.message}`);
+            }
+          }
         }
       } catch (err) {
         console.warn(`[wrapper] auth-profiles.json write failed: ${err.message}`);
