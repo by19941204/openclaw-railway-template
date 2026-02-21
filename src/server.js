@@ -1604,11 +1604,18 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] auth-profiles.json write failed: ${err.message}`);
       }
 
-      // Set model fallback to OpenAI gpt-5.3-codex
+      // Set model fallback to OpenAI Codex (gpt-5.3-codex)
+      // IMPORTANT: provider must be "openai-codex" (not "openai") to match
+      // the auth profile registered in auth-profiles.json as "openai-codex:default"
       try {
+        // Remove old incorrect fallback (openai/gpt-5.3-codex) if present
+        await runCmd(
+          OPENCLAW_NODE,
+          clawArgs(["models", "fallbacks", "remove", "openai/gpt-5.3-codex"]),
+        ).catch(() => {});
         const fb = await runCmd(
           OPENCLAW_NODE,
-          clawArgs(["models", "fallbacks", "add", "openai/gpt-5.3-codex"]),
+          clawArgs(["models", "fallbacks", "add", "openai-codex/gpt-5.3-codex"]),
         );
         console.log(`[wrapper] model fallback set exit=${fb.code}`);
         if (fb.output) console.log(fb.output);
