@@ -1654,18 +1654,9 @@ const server = app.listen(PORT, () => {
         if (!config.auth) config.auth = {};
         if (!config.auth.profiles) config.auth.profiles = {};
 
-        let needsConfigUpdate = !config.auth.profiles["openai-codex:default"]
+        const needsConfigUpdate = !config.auth.profiles["openai-codex:default"]
           || config.auth.profiles["openai-codex:default"].provider !== "openai-codex"
           || config.auth.profiles["openai-codex:default"].mode !== "oauth";
-
-        // Reduce LLM timeout from 600s (10min) to 120s (2min) so fallback
-        // to Codex triggers quickly when Anthropic is unresponsive.
-        if (!config.agents) config.agents = {};
-        if (!config.agents.defaults) config.agents.defaults = {};
-        if (config.agents.defaults.timeoutSeconds !== 120) {
-          config.agents.defaults.timeoutSeconds = 120;
-          needsConfigUpdate = true;
-        }
 
         if (needsConfigUpdate) {
           config.auth.profiles["openai-codex:default"] = {
@@ -1673,7 +1664,7 @@ const server = app.listen(PORT, () => {
             mode: "oauth",
           };
           fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-          console.log(`[wrapper] openclaw.json updated (auth + timeout=120s)`);
+          console.log(`[wrapper] registered openai-codex:default in openclaw.json auth.profiles`);
 
           // Verify
           const verify = JSON.parse(fs.readFileSync(configPath, "utf8"));
