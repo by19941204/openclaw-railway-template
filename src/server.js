@@ -1677,22 +1677,29 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
       }
 
-      // Clear any stale cooldown on openai-codex:default from previous runs
-      // usageStats is a top-level field: store.usageStats["openai-codex:default"]
+      // Clear ALL stale cooldowns from previous runs on startup.
+      // OpenClaw puts profiles in cooldown on timeout/errors (even non-rate-limit),
+      // which persists across restarts via auth-profiles.json usageStats.
       try {
         const authPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
         const store = JSON.parse(fs.readFileSync(authPath, "utf8"));
-        const stats = store.usageStats?.["openai-codex:default"];
-        const now = Date.now();
-        const inCooldown = (stats?.cooldownUntil > now) || (stats?.disabledUntil > now);
-        if (inCooldown) {
-          delete stats.cooldownUntil;
-          delete stats.disabledUntil;
-          delete stats.consecutiveErrors;
-          fs.writeFileSync(authPath, JSON.stringify(store, null, 2));
-          console.log(`[wrapper] cleared openai-codex:default cooldown`);
-        } else {
-          console.log(`[wrapper] openai-codex:default not in cooldown`);
+        if (store.usageStats) {
+          const now = Date.now();
+          const cleared = [];
+          for (const [profileId, stats] of Object.entries(store.usageStats)) {
+            if (stats?.cooldownUntil > now || stats?.disabledUntil > now) {
+              delete stats.cooldownUntil;
+              delete stats.disabledUntil;
+              delete stats.consecutiveErrors;
+              cleared.push(profileId);
+            }
+          }
+          if (cleared.length > 0) {
+            fs.writeFileSync(authPath, JSON.stringify(store, null, 2));
+            console.log(`[wrapper] cleared cooldowns: ${cleared.join(", ")}`);
+          } else {
+            console.log(`[wrapper] no stale cooldowns found`);
+          }
         }
       } catch {}
 
