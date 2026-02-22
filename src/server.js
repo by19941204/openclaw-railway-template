@@ -1678,30 +1678,48 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
       }
 
-      // Clear cooldowns once on startup only (fresh start after deploy).
-      // Runtime cooldowns use OpenClaw's default: 60s → 5min → 25min → 60min cap.
-      // During cooldown, requests fall back to Codex automatically.
-      try {
-        const authStatsPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
-        const store = JSON.parse(fs.readFileSync(authStatsPath, "utf8"));
-        if (store.usageStats) {
+      // Clear cooldowns on startup + cap at 30min during runtime.
+      // OpenClaw default: 60s → 5min → 25min → 60min. We cap at 30min
+      // so cooldown never exceeds half an hour. During cooldown, Codex handles requests.
+      const MAX_COOLDOWN_MS = 30 * 60 * 1000;
+      const authStatsPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
+
+      function capCooldowns(startup) {
+        try {
+          const store = JSON.parse(fs.readFileSync(authStatsPath, "utf8"));
+          if (!store.usageStats) return;
           const now = Date.now();
-          const cleared = [];
+          const changed = [];
           for (const [profileId, stats] of Object.entries(store.usageStats)) {
-            if (stats?.cooldownUntil > now || stats?.disabledUntil > now) {
+            if (startup && (stats?.cooldownUntil > now || stats?.disabledUntil > now)) {
               delete stats.cooldownUntil;
               delete stats.disabledUntil;
               delete stats.consecutiveErrors;
-              cleared.push(profileId);
+              changed.push(profileId);
+            } else if (!startup) {
+              if (stats?.cooldownUntil > now + MAX_COOLDOWN_MS) {
+                stats.cooldownUntil = now + MAX_COOLDOWN_MS;
+                changed.push(profileId);
+              }
+              if (stats?.disabledUntil > now + MAX_COOLDOWN_MS) {
+                stats.disabledUntil = now + MAX_COOLDOWN_MS;
+                changed.push(profileId);
+              }
             }
           }
-          if (cleared.length > 0) {
+          if (changed.length > 0) {
             fs.writeFileSync(authStatsPath, JSON.stringify(store, null, 2));
-            console.log(`[wrapper] cleared cooldowns: ${cleared.join(", ")}`);
-          } else {
+            console.log(`[wrapper] ${startup ? "cleared" : "capped"} cooldowns: ${[...new Set(changed)].join(", ")}`);
+          } else if (startup) {
             console.log(`[wrapper] no stale cooldowns found`);
           }
-        }
+        } catch {}
+      }
+
+      capCooldowns(true);
+      setInterval(() => capCooldowns(false), 60 * 1000);
+
+      try {
       } catch {}
 
       // Set model fallback to OpenAI Codex (gpt-5.3-codex)
