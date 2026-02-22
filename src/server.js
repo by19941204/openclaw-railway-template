@@ -350,33 +350,6 @@ app.get("/healthz", async (_req, res) => {
   res.json({ ok: true, gateway });
 });
 
-// Quick cooldown clear endpoint — no restart needed.
-// Usage: curl https://<domain>/admin/clear-cooldowns?pwd=<SETUP_PASSWORD>
-app.get("/admin/clear-cooldowns", (req, res) => {
-  if (req.query.pwd !== SETUP_PASSWORD) return res.status(401).json({ error: "unauthorized" });
-  try {
-    const authPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
-    const store = JSON.parse(fs.readFileSync(authPath, "utf8"));
-    if (!store.usageStats) return res.json({ cleared: [] });
-    const now = Date.now();
-    const cleared = [];
-    for (const [profileId, stats] of Object.entries(store.usageStats)) {
-      if (stats?.cooldownUntil > now || stats?.disabledUntil > now) {
-        delete stats.cooldownUntil;
-        delete stats.disabledUntil;
-        delete stats.consecutiveErrors;
-        cleared.push(profileId);
-      }
-    }
-    if (cleared.length > 0) {
-      fs.writeFileSync(authPath, JSON.stringify(store, null, 2));
-      console.log(`[wrapper] manual cooldown clear: ${cleared.join(", ")}`);
-    }
-    res.json({ cleared });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 app.get("/setup/healthz", async (_req, res) => {
   const configured = isConfigured();
