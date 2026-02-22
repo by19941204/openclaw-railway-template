@@ -1678,14 +1678,13 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
       }
 
-      // Auto-clear cooldowns: on startup + every 60s.
-      // OpenClaw puts profiles in cooldown on timeout/errors, blocking all
-      // requests. This patrol ensures max downtime is ~60 seconds.
-      const authStatsPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
-      function clearCooldowns() {
-        try {
-          const store = JSON.parse(fs.readFileSync(authStatsPath, "utf8"));
-          if (!store.usageStats) return;
+      // Clear cooldowns once on startup only (fresh start after deploy).
+      // Runtime cooldowns use OpenClaw's default: 60s → 5min → 25min → 60min cap.
+      // During cooldown, requests fall back to Codex automatically.
+      try {
+        const authStatsPath = path.join(STATE_DIR, "agents", "main", "agent", "auth-profiles.json");
+        const store = JSON.parse(fs.readFileSync(authStatsPath, "utf8"));
+        if (store.usageStats) {
           const now = Date.now();
           const cleared = [];
           for (const [profileId, stats] of Object.entries(store.usageStats)) {
@@ -1699,11 +1698,11 @@ const server = app.listen(PORT, () => {
           if (cleared.length > 0) {
             fs.writeFileSync(authStatsPath, JSON.stringify(store, null, 2));
             console.log(`[wrapper] cleared cooldowns: ${cleared.join(", ")}`);
+          } else {
+            console.log(`[wrapper] no stale cooldowns found`);
           }
-        } catch {}
-      }
-      clearCooldowns();
-      setInterval(clearCooldowns, 60 * 1000);
+        }
+      } catch {}
 
       // Set model fallback to OpenAI Codex (gpt-5.3-codex)
       // IMPORTANT: provider must be "openai-codex" (not "openai") to match
