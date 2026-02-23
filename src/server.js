@@ -1005,6 +1005,7 @@ proxy.on("proxyReqWs", (proxyReq, req, socket, options, head) => {
   // Without this, Railway's LB headers + our xfwd proxy make the gateway
   // think it's a remote client → "pairing required" → WebSocket close 1008.
   proxyReq.setHeader("host", `${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`);
+  proxyReq.setHeader("origin", `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`);
   proxyReq.removeHeader("x-forwarded-for");
   proxyReq.removeHeader("x-forwarded-port");
   proxyReq.removeHeader("x-forwarded-proto");
@@ -1807,10 +1808,12 @@ server.on("upgrade", async (req, socket, head) => {
   }
 
   // Make the gateway see this as a direct local connection so it auto-approves
-  // device pairing (isLocalDirectRequest checks host + absence of proxy headers).
-  // Without this, Railway's load balancer headers cause the gateway to reject
-  // the Control UI with "pairing required" (WebSocket close 1008).
+  // device pairing (isLocalDirectRequest checks host + absence of proxy headers)
+  // and passes the origin check (gateway rejects non-local origins unless in
+  // gateway.controlUi.allowedOrigins).
+  const localOrigin = `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
   req.headers.host = `${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
+  req.headers.origin = localOrigin;
   delete req.headers["x-forwarded-for"];
   delete req.headers["x-forwarded-port"];
   delete req.headers["x-forwarded-proto"];
