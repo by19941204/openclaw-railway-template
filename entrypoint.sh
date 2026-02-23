@@ -105,4 +105,15 @@ for f in "$CLAW_DIST"/model-selection-*.js; do
   fi
 done
 
+# Configure gateway to allow Control UI from Railway's public domain
+# and skip device-level auth (token auth is still required).
+RAILWAY_DOMAIN="${RAILWAY_PUBLIC_DOMAIN:-}"
+if [ -n "$RAILWAY_DOMAIN" ]; then
+  echo "[entrypoint] configuring gateway for domain: $RAILWAY_DOMAIN"
+  gosu openclaw openclaw config set gateway.controlUi.allowedOrigins "[\"https://$RAILWAY_DOMAIN\"]" 2>&1 || true
+  gosu openclaw openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true 2>&1 || true
+  gosu openclaw openclaw config set gateway.trustedProxies "[\"127.0.0.1\",\"::1\"]" 2>&1 || true
+  echo "[entrypoint] gateway config done"
+fi
+
 exec gosu openclaw node src/server.js
