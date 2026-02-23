@@ -1542,11 +1542,9 @@ app.use(async (req, res) => {
   // the token from either ?token= or #token= on first load, then stores
   // it in localStorage for subsequent visits.  We redirect once so the
   // browser's URL contains the token fragment.
-  const gatewayPages = ["/openclaw", "/cron", "/control"];
-  if (
-    !req.query.token &&
-    (gatewayPages.includes(req.path) || gatewayPages.some((p) => req.path.startsWith(p + "/")))
-  ) {
+  const gatewayPages = ["/openclaw", "/cron", "/control", "/chat"];
+  const isGatewayPage = req.path === "/" || gatewayPages.includes(req.path) || gatewayPages.some((p) => req.path.startsWith(p + "/"));
+  if (!req.query.token && isGatewayPage) {
     // Use hash fragment (#token=) so the token doesn't get sent to CDNs or
     // logged in access logs on intermediate proxies.
     const sep = req.url.includes("?") ? "&" : "?";
