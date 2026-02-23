@@ -1676,41 +1676,7 @@ const server = app.listen(PORT, () => {
         console.warn(`[wrapper] openclaw.json auth config update failed: ${err.message}`);
       }
 
-      // Patch OpenClaw cooldown behavior:
-      // 1. Cooldown times: 60s → 5min → 30min cap (default is 60min)
-      // 2. Timeout/unknown errors: NO cooldown (timeout is normal, not rate limit)
-      //    Only real rate_limit/auth/format errors trigger cooldown.
-      try {
-        const clawDist = path.join(path.dirname(process.env.OPENCLAW_ENTRY || ""), "dist");
-        const files = fs.readdirSync(clawDist).filter(f => f.startsWith("model-selection"));
-        for (const f of files) {
-          const fp = path.join(clawDist, f);
-          let src = fs.readFileSync(fp, "utf8");
-          let patched = false;
-
-          // Patch 1: cooldown cap 60min → 30min, custom schedule
-          const oldFormula = "return Math.min(3600 * 1e3, 60 * 1e3 * 5 ** Math.min(normalized - 1, 3));";
-          if (src.includes(oldFormula)) {
-            src = src.replace(oldFormula, "if (normalized === 1) return 60e3; if (normalized === 2) return 300e3; return 1800e3;");
-            patched = true;
-          }
-
-          // Patch 2: skip cooldown for timeout/unknown — only cooldown on real errors
-          const oldElse = '\t} else {\n\t\tconst backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);\n\t\tupdatedStats.cooldownUntil = params.now + backoffMs;\n\t}';
-          const newElse = '\t} else if (params.reason !== "timeout" && params.reason !== "unknown") {\n\t\tconst backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);\n\t\tupdatedStats.cooldownUntil = params.now + backoffMs;\n\t}';
-          if (src.includes(oldElse)) {
-            src = src.replace(oldElse, newElse);
-            patched = true;
-          }
-
-          if (patched) {
-            fs.writeFileSync(fp, src);
-            console.log(`[wrapper] patched cooldown: 60s/5min/30min cap, no cooldown on timeout`);
-          }
-        }
-      } catch (err) {
-        console.warn(`[wrapper] cooldown patch failed: ${err.message}`);
-      }
+      // Cooldown patch is now in entrypoint.sh (runs as root before openclaw user).
 
       // Clear cooldowns on startup for fresh state
       try {

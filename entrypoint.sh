@@ -84,4 +84,25 @@ chown -R openclaw:openclaw "$BROWSER_VOLUME_DIR"
 chown -h openclaw:openclaw "$BROWSER_HOME_DIR"
 chown openclaw:openclaw "$(dirname "$BROWSER_HOME_DIR")"
 
+# Patch OpenClaw cooldown: 60s → 5min → 30min cap, no cooldown on timeout.
+# Must run as root before switching to openclaw user.
+CLAW_DIST="/usr/local/lib/node_modules/openclaw/dist"
+for f in "$CLAW_DIST"/model-selection-*.js; do
+  [ -f "$f" ] || continue
+  # Patch 1: cooldown cap 30min instead of 60min
+  OLD_FORMULA='return Math.min(3600 * 1e3, 60 * 1e3 * 5 ** Math.min(normalized - 1, 3));'
+  NEW_FORMULA='if (normalized === 1) return 60e3; if (normalized === 2) return 300e3; return 1800e3;'
+  if grep -q "$OLD_FORMULA" "$f" 2>/dev/null; then
+    sed -i "s|$OLD_FORMULA|$NEW_FORMULA|" "$f"
+    echo "[entrypoint] patched cooldown formula: 60s/5min/30min cap"
+  fi
+  # Patch 2: no cooldown on timeout/unknown
+  if grep -q '} else {' "$f" && grep -q 'calculateAuthProfileCooldownMs(nextErrorCount)' "$f"; then
+    sed -i 's/\t} else {\n\t\tconst backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);/\t} else if (params.reason !== "timeout" \&\& params.reason !== "unknown") {\n\t\tconst backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);/' "$f" 2>/dev/null
+    # If sed multiline failed, try perl
+    perl -i -0pe 's/\} else \{\n\t\tconst backoffMs = calculateAuthProfileCooldownMs\(nextErrorCount\);/} else if (params.reason !== "timeout" \&\& params.reason !== "unknown") {\n\t\tconst backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);/' "$f" 2>/dev/null
+    echo "[entrypoint] patched: no cooldown on timeout"
+  fi
+done
+
 exec gosu openclaw node src/server.js
