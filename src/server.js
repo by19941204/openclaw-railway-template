@@ -996,6 +996,20 @@ proxy.on("proxyReq", (proxyReq, req, res) => {
 
 proxy.on("proxyReqWs", (proxyReq, req, socket, options, head) => {
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
+  // Make the gateway treat this as a direct local connection by:
+  // 1) Setting host to localhost (isLocalDirectRequest checks host)
+  // 2) Stripping X-Forwarded-* headers (isLocalDirectRequest rejects if present)
+  //
+  // This is critical because the gateway auto-approves device pairing for
+  // local clients (isLocalDirectRequest → silent pairing → auto-approve).
+  // Without this, Railway's LB headers + our xfwd proxy make the gateway
+  // think it's a remote client → "pairing required" → WebSocket close 1008.
+  proxyReq.setHeader("host", `${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`);
+  proxyReq.removeHeader("x-forwarded-for");
+  proxyReq.removeHeader("x-forwarded-port");
+  proxyReq.removeHeader("x-forwarded-proto");
+  proxyReq.removeHeader("x-forwarded-host");
+  proxyReq.removeHeader("x-real-ip");
 });
 
 // ─── Radio routes ───────────────────────────────────────────────────────
@@ -1791,7 +1805,20 @@ server.on("upgrade", async (req, socket, head) => {
     wsUrl.searchParams.set("token", OPENCLAW_GATEWAY_TOKEN);
     req.url = wsUrl.pathname + wsUrl.search;
   }
-  proxy.ws(req, socket, head, { target: GATEWAY_TARGET });
+
+  // Make the gateway see this as a direct local connection so it auto-approves
+  // device pairing (isLocalDirectRequest checks host + absence of proxy headers).
+  // Without this, Railway's load balancer headers cause the gateway to reject
+  // the Control UI with "pairing required" (WebSocket close 1008).
+  req.headers.host = `${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
+  delete req.headers["x-forwarded-for"];
+  delete req.headers["x-forwarded-port"];
+  delete req.headers["x-forwarded-proto"];
+  delete req.headers["x-forwarded-host"];
+  delete req.headers["x-real-ip"];
+
+  // Pass xfwd:false so http-proxy doesn't re-add the forwarded headers we just deleted
+  proxy.ws(req, socket, head, { target: GATEWAY_TARGET, xfwd: false });
 });
 
 async function gracefulShutdown(signal) {
