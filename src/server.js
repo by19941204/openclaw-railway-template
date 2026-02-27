@@ -341,6 +341,33 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
+// ── Temporary data export endpoint (remove after migration) ──
+app.get("/export-data", async (req, res) => {
+  const pw = req.query.pw;
+  if (!SETUP_PASSWORD || pw !== SETUP_PASSWORD) {
+    return res.status(403).send("Forbidden");
+  }
+  const { execSync } = await import("node:child_process");
+  const tarPath = "/tmp/openclaw-export.tar.gz";
+  try {
+    execSync(`cd /data && tar -czf ${tarPath} .openclaw workspace`, {
+      timeout: 60000,
+    });
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="openclaw-export.tar.gz"',
+    );
+    const stream = fs.createReadStream(tarPath);
+    stream.pipe(res);
+    stream.on("end", () => {
+      fs.unlink(tarPath, () => {});
+    });
+  } catch (err) {
+    res.status(500).send(`Export failed: ${err.message}`);
+  }
+});
+
 app.get("/healthz", async (_req, res) => {
   let gateway = "unconfigured";
   if (isConfigured()) {
