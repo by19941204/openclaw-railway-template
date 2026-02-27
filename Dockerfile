@@ -38,8 +38,6 @@ RUN apt-get update \
     libxdmcp6 \
     fonts-liberation \
     fonts-noto-cjk \
-    # Audio tools for radio feature
-    ffmpeg \
   && rm -rf /var/lib/apt/lists/* \
   && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
@@ -51,7 +49,6 @@ RUN npm install -g openclaw@latest
 RUN useradd -m -s /bin/bash openclaw \
   && mkdir -p /data && chown openclaw:openclaw /data \
   && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew \
-  && mkdir -p /tmp/radio && chown openclaw:openclaw /tmp/radio
 
 # 4. Install Playwright system deps (root, uses apt-get) + browser (openclaw user)
 RUN npx playwright install-deps chromium

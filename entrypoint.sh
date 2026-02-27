@@ -15,9 +15,6 @@ rm -rf /data/.openclaw/browser/*/Service\ Worker/CacheStorage 2>/dev/null || tru
 rm -rf /data/.openclaw/browser/*/blob_storage 2>/dev/null || true
 rm -rf /data/.openclaw/browser/*/IndexedDB 2>/dev/null || true
 
-# Clear radio temp files
-rm -rf /tmp/radio/* 2>/dev/null || true
-
 # Clear stale gateway lock files (prevents "gateway already running" deadloop)
 rm -rf /tmp/openclaw-*/gateway.*.lock 2>/dev/null || true
 rm -f /data/.openclaw/gateway.lock /data/.openclaw/gateway.pid 2>/dev/null || true
