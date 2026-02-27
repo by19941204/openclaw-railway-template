@@ -48,7 +48,7 @@ RUN npm install -g openclaw@latest
 # 3. Create openclaw user BEFORE installing Playwright
 RUN useradd -m -s /bin/bash openclaw \
   && mkdir -p /data && chown openclaw:openclaw /data \
-  && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew \
+  && mkdir -p /home/linuxbrew/.linuxbrew && chown -R openclaw:openclaw /home/linuxbrew
 
 # 4. Install Playwright system deps (root, uses apt-get) + browser (openclaw user)
 RUN npx playwright install-deps chromium
